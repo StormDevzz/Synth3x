@@ -1,0 +1,10 @@
+build/
+work/
+iso/*.iso
+iso/boot/vmlinuz
+iso/boot/initrd.img
+iso/boot/synth3x-kernel.elf
+disk_img/
+*.o
+*.swp
+tags
