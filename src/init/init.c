@@ -135,17 +135,27 @@ int main(int argc, char *argv[]) {
 
     if (fb_map) show_splash(fb_map, fb_w, fb_h);
     usleep(800000);
+    if (fb_map) munmap(fb_map, fb_w * fb_h * 2);
 
-    /* Auto-select Synth3x DE if available */
-    if (file_exists(SYNTH3X_DE)) {
-        if (fb_map) munmap(fb_map, fb_w * fb_h * 2);
-        execl(SYNTH3X_DE, "synth3x", NULL);
+    /* Fork so that the DE/shell is NOT PID 1 — avoids kernel panic */
+    for (;;) {
+        pid_t pid = fork();
+        if (pid < 0) { sleep(5); continue; }
+
+        if (pid == 0) {
+            /* Child — run DE or shell */
+            if (file_exists(SYNTH3X_DE)) {
+                execl(SYNTH3X_DE, "synth3x", NULL);
+                execl(SHELL, "sh", NULL);
+            }
+            execl(SHELL, "sh", NULL);
+            _exit(1);
+        }
+
+        /* Parent (PID 1) — wait for child and respawn */
+        int status;
+        waitpid(pid, &status, 0);
+        printf("init: DE exited (status %d), respawning...\n", status);
+        sleep(2);
     }
-
-    /* Fallback to shell */
-    printf("init: starting shell\n");
-    execl(SHELL, "sh", NULL);
-
-    /* Should never reach here */
-    for (;;) sleep(10);
 }
