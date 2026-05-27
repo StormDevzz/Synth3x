@@ -35,15 +35,16 @@ $(KERNEL): $(KERNEL_OBJ)
 	ld $(LDFLAGS) -o $@ $^
 	@echo "  ── Kernel: $@"
 
-# ─── Init (userspace, 64-bit host) ───
-$(INIT): src/init/init.c
-	$(CC64) -O2 -Wall -o $@ $<
+# ─── Init (userspace, 64-bit, static for initramfs) ───
+INIT_ASM = src/init/splash.S src/synth3x/font.S
+$(INIT): src/init/init.c $(INIT_ASM)
+	$(CC64) -static -O2 -Wall -o $@ src/init/init.c $(INIT_ASM) -lpthread -lrt
 	@echo "  ── Init: $@"
 
-# ─── Synth3x DE ───
+# ─── Synth3x DE (static for initramfs) ───
 SYNTH3X_ASM = src/synth3x/fb_asm.S src/synth3x/font.S
 $(SYNTH3X): src/synth3x/synth3x.c $(SYNTH3X_ASM)
-	$(CC64) -O2 -Wall -o $@ src/synth3x/synth3x.c $(SYNTH3X_ASM) -lpthread -lrt
+	$(CC64) -static -O2 -Wall -o $@ src/synth3x/synth3x.c $(SYNTH3X_ASM) -lpthread -lrt
 	@echo "  ── Synth3x DE: $@"
 
 # ─── Initramfs ───
@@ -51,6 +52,8 @@ INITRAMFS = $(BUILD)/initrd.img
 $(INITRAMFS): $(INIT) $(SYNTH3X)
 	@echo "  ── Building initramfs..."
 	@mkdir -p $(BUILD)/initramfs/bin $(BUILD)/initramfs/usr/bin
+	@mkdir -p $(BUILD)/initramfs/dev $(BUILD)/initramfs/proc
+	@mkdir -p $(BUILD)/initramfs/sys $(BUILD)/initramfs/tmp
 	@cp $(INIT) $(BUILD)/initramfs/init
 	@cp $(SYNTH3X) $(BUILD)/initramfs/usr/bin/synth3x
 	@cp /usr/bin/busybox $(BUILD)/initramfs/bin/busybox
@@ -79,7 +82,7 @@ iso: $(KERNEL) $(INIT) $(SYNTH3X) $(INITRAMFS)
 
 # ─── Run in QEMU ───
 run: iso
-	@qemu-system-x86_64 -cdrom iso/synth3x-os.iso -m 512 -accel kvm
+	@qemu-system-x86_64 -cdrom iso/synth3x-os.iso -m 512 -accel kvm -vga std
 
 # ─── Clean ───
 clean:

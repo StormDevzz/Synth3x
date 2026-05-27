@@ -1,9 +1,6 @@
 build/
 work/
-iso/*.iso
-iso/boot/vmlinuz
-iso/boot/initrd.img
-iso/boot/synth3x-kernel.elf
+iso/
 disk_img/
 *.o
 *.swp
