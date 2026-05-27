@@ -1,7 +1,7 @@
 /* Synth3x OS — Multiboot Kernel
  * Architecture: x86-32 (protected mode)
- * Language: C (no libc, freestanding)
- * Entry point: _start
+ * Language: C + Assembly
+ * Entry point: _start (start.S)
  */
 
 typedef unsigned char      uint8_t;
@@ -13,6 +13,8 @@ typedef uint32_t           uintptr_t;
 #define NULL ((void*)0)
 #define MULTIBOOT_MAGIC  0xE85250D6
 #define MULTIBOOT_ARCH   0
+
+#include "kernel.h"
 
 struct __attribute__((packed)) multiboot_tag {
     uint32_t type;
@@ -82,26 +84,19 @@ void set_color(uint8_t fg, uint8_t bg) {
     color = (bg << 4) | fg;
 }
 
-/* Check CPUID */
-static int cpuid_supported(void) {
-    uint32_t flags;
-    __asm__ volatile("pushf; pop %0; mov %0, %%ecx; xor $0x200000, %0; push %0; popf; pushf; pop %0; xor %%ecx, %0"
-        : "=r"(flags) :: "ecx");
-    return (flags & 0x200000) != 0;
-}
-
-/* Read CPU name */
+/* Read CPU name using cpu.S */
 static void print_cpu(void) {
     if (!cpuid_supported()) {
         print("CPU: Unknown (no CPUID)\n");
         return;
     }
-    uint32_t eax, ebx, ecx, edx;
-    __asm__ volatile("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx) : "a"(0x80000002));
     char brand[49];
-    __asm__ volatile("cpuid" : "=a"(((uint32_t*)brand)[0]), "=b"(((uint32_t*)brand)[1]), "=c"(((uint32_t*)brand)[2]), "=d"(((uint32_t*)brand)[3]) : "a"(0x80000002));
-    __asm__ volatile("cpuid" : "=a"(((uint32_t*)brand)[4]), "=b"(((uint32_t*)brand)[5]), "=c"(((uint32_t*)brand)[6]), "=d"(((uint32_t*)brand)[7]) : "a"(0x80000003));
-    __asm__ volatile("cpuid" : "=a"(((uint32_t*)brand)[8]), "=b"(((uint32_t*)brand)[9]), "=c"(((uint32_t*)brand)[10]), "=d"(((uint32_t*)brand)[11]) : "a"(0x80000004));
+    cpuid(0x80000002, (uint32_t*)&brand[0],  (uint32_t*)&brand[4],
+                      (uint32_t*)&brand[8],  (uint32_t*)&brand[12]);
+    cpuid(0x80000003, (uint32_t*)&brand[16], (uint32_t*)&brand[20],
+                      (uint32_t*)&brand[24], (uint32_t*)&brand[28]);
+    cpuid(0x80000004, (uint32_t*)&brand[32], (uint32_t*)&brand[36],
+                      (uint32_t*)&brand[40], (uint32_t*)&brand[44]);
     brand[48] = 0;
     print("CPU: ");
     print(brand);
@@ -192,11 +187,9 @@ __attribute__((used)) void kernel_main(uint32_t magic, struct multiboot_info *mb
         /* Check keyboard status port */
         if (__builtin_expect(1, 1)) {
             /* Simple polling */
-            uint8_t status;
-            __asm__ volatile("inb $0x64, %0" : "=a"(status));
+            uint8_t status = inb(0x64);
             if (status & 0x01) {
-                uint8_t scancode;
-                __asm__ volatile("inb $0x60, %0" : "=a"(scancode));
+                uint8_t scancode = inb(0x60);
                 
                 /* Convert scancode to ASCII (US layout) */
                 static const char ascii[] = {
@@ -229,7 +222,23 @@ __attribute__((used)) void kernel_main(uint32_t magic, struct multiboot_info *mb
     print("\n[OK] System ready.\n");
 
 halt:
-    for (;;) __asm__ volatile("hlt");
+    for (;;) halt();
+}
+
+/* Interrupt handler stubs referenced by idt.S */
+void isr_handler(uint32_t *regs) {
+    (void)regs;
+    print("EXCEPTION at vector ");
+    print_hex(regs[0]);
+    print("\n");
+    for (;;) halt();
+}
+
+void irq_handler(uint32_t *regs) {
+    (void)regs;
+    /* Send EOI to PIC */
+    outb(0x20, 0x20);
+    if (regs[0] >= 40) outb(0xA0, 0x20);
 }
 
 /* Entry point: start.S sets up stack and calls kernel_main */

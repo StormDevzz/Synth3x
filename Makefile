@@ -2,7 +2,7 @@
 ASM      = as
 CC32     = gcc
 CC64     = gcc
-CFLAGS   = -m32 -ffreestanding -fno-stack-protector -fno-pic -nostdlib -O2 -Wall -Wextra -I src/lib
+CFLAGS   = -m32 -ffreestanding -fno-stack-protector -fno-pic -nostdlib -O2 -Wall -Wextra -I src/kernel -I src/lib
 ASFLAGS  = --32
 LDFLAGS  = -m elf_i386 -T src/kernel/linker.ld -nostdlib
 
@@ -11,20 +11,27 @@ KERNEL   = $(BUILD)/synth3x-kernel.elf
 INIT     = $(BUILD)/init
 SYNTH3X  = $(BUILD)/synth3x
 
+KERNEL_ASM_SRC = $(wildcard src/kernel/*.S)
+KERNEL_ASM_OBJ = $(patsubst src/kernel/%.S,$(BUILD)/%.o,$(KERNEL_ASM_SRC))
+KERNEL_C_SRC   = $(wildcard src/kernel/*.c)
+KERNEL_C_OBJ   = $(patsubst src/kernel/%.c,$(BUILD)/%.o,$(KERNEL_C_SRC))
+KERNEL_OBJ     = $(KERNEL_ASM_OBJ) $(KERNEL_C_OBJ)
+
 .PHONY: all clean iso run
 
 all: $(KERNEL) $(INIT) $(SYNTH3X)
 
-# ─── Kernel objects ───
-$(BUILD)/start.o: src/kernel/start.S
+# ─── Kernel assembly objects ───
+$(BUILD)/%.o: src/kernel/%.S
 	@mkdir -p $(BUILD)
 	$(ASM) $(ASFLAGS) -o $@ $<
 
-$(BUILD)/kernel.o: src/kernel/kernel.c
+# ─── Kernel C objects ───
+$(BUILD)/%.o: src/kernel/%.c
 	@mkdir -p $(BUILD)
 	$(CC32) $(CFLAGS) -c -o $@ $<
 
-$(KERNEL): $(BUILD)/start.o $(BUILD)/kernel.o
+$(KERNEL): $(KERNEL_OBJ)
 	ld $(LDFLAGS) -o $@ $^
 	@echo "  ── Kernel: $@"
 
