@@ -46,15 +46,30 @@ $(SYNTH3X): src/synth3x/synth3x.c $(SYNTH3X_ASM)
 	$(CC64) -O2 -Wall -o $@ src/synth3x/synth3x.c $(SYNTH3X_ASM) -lpthread -lrt
 	@echo "  ── Synth3x DE: $@"
 
+# ─── Initramfs ───
+INITRAMFS = $(BUILD)/initrd.img
+$(INITRAMFS): $(INIT) $(SYNTH3X)
+	@echo "  ── Building initramfs..."
+	@mkdir -p $(BUILD)/initramfs/bin $(BUILD)/initramfs/usr/bin
+	@cp $(INIT) $(BUILD)/initramfs/init
+	@cp $(SYNTH3X) $(BUILD)/initramfs/usr/bin/synth3x
+	@cp /usr/bin/busybox $(BUILD)/initramfs/bin/busybox
+	@cd $(BUILD)/initramfs && ln -sf busybox bin/sh 2>/dev/null; \
+		for app in ls cat mount umount ps kill mkdir cp mv rm dmesg; do \
+			ln -sf /bin/busybox bin/$$app 2>/dev/null; done
+	@cd $(BUILD)/initramfs && find . | cpio -H newc -o --quiet > ../initramfs.cpio
+	@gzip -f $(BUILD)/initramfs.cpio
+	@mv $(BUILD)/initramfs.cpio.gz $(INITRAMFS)
+	@rm -rf $(BUILD)/initramfs
+	@echo "  ── Initramfs: $(INITRAMFS) ($$(du -h $(INITRAMFS) | cut -f1))"
+
 # ─── ISO ───
-iso: $(KERNEL) $(INIT) $(SYNTH3X)
+iso: $(KERNEL) $(INIT) $(SYNTH3X) $(INITRAMFS)
 	@echo "  ── Building ISO..."
 	@mkdir -p iso/boot/grub
-	@cp $(KERNEL) iso/boot/
-	@cp $(INIT) iso/boot/init
-	@mkdir -p iso/usr/bin
-	@cp $(SYNTH3X) iso/usr/bin/synth3x
-	@cp src/boot/grub.cfg iso/boot/grub/
+	@cp /boot/vmlinuz-linux iso/boot/vmlinuz-linux
+	@cp $(INITRAMFS) iso/boot/initrd.img
+	@cp boot/grub.cfg iso/boot/grub/
 	@if command -v grub-mkrescue >/dev/null 2>&1; then \
 		grub-mkrescue -o iso/synth3x-os.iso iso 2>/dev/null; \
 		echo "  ── ISO: iso/synth3x-os.iso ($$(du -h iso/synth3x-os.iso | cut -f1))"; \
