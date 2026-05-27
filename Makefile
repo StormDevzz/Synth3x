@@ -41,8 +41,9 @@ $(INIT): src/init/init.c
 	@echo "  ── Init: $@"
 
 # ─── Synth3x DE ───
-$(SYNTH3X): src/synth3x/synth3x.c
-	$(CC64) -O2 -Wall -o $@ $< -lpthread -lrt
+SYNTH3X_ASM = src/synth3x/fb_asm.S src/synth3x/font.S
+$(SYNTH3X): src/synth3x/synth3x.c $(SYNTH3X_ASM)
+	$(CC64) -O2 -Wall -o $@ src/synth3x/synth3x.c $(SYNTH3X_ASM) -lpthread -lrt
 	@echo "  ── Synth3x DE: $@"
 
 # ─── ISO ───
