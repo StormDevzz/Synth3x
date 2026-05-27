@@ -355,5 +355,5 @@ int main(int argc, char *argv[]) {
     free(backbuf); munmap(fb,fb_w*fb_h*2); close(fb_fd);
     if(tty>=0) ioctl(tty, KDSETMODE, KD_TEXT);
     printf("Synth3x DE: done.\n");
-    return 0;
+    for(;;) pause();
 }

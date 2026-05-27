@@ -1,43 +1,37 @@
-/* Synth3x OS — init process
- * First userspace process.  Shows a bootsplash, then starts the DE.
+/* Synth3x OS — init (PID 1)
+ * Mounts /dev, /proc, /sys; shows splash; forks Synth3x DE.
+ * No system() calls — everything via direct syscall wrappers.
  */
 
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/mman.h>
+#include <sys/mount.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
 #include <signal.h>
-#include <sys/stat.h>
 #include <stdint.h>
-#include <linux/fb.h>
-#include <sys/ioctl.h>
 #include <time.h>
+#include <linux/fb.h>
+#include <linux/kd.h>
+#include <linux/input.h>
+#include <dirent.h>
 
 #define SYNTH3X_DE   "/usr/bin/synth3x"
-#define XFCE_SESSION "/usr/bin/startxfce4"
 #define SHELL        "/bin/sh"
 
-/* ASM routines from splash.S */
 extern void splash_fast_fill(uint16_t *buf, int w, int h, uint16_t colour);
-extern void splash_pixel(uint16_t *buf, int stride, int x, int y, uint16_t colour);
-
-/* ASM font data from font.S */
 extern const uint8_t font8x8[];
 
-/* ─── Helpers ─── */
-static int file_exists(const char *p) {
-    struct stat st;
-    return stat(p, &st) == 0;
-}
-
-/* ─── Bootsplash ─── */
+/* ─── Splash ─── */
 #define RGB565(r,g,b) ((((r)>>3)<<11)|(((g)>>2)<<5)|((b)>>3))
 
-static void splash_char(uint16_t *fb, int stride, int x, int y,
-                        char c, uint16_t fg, int scale) {
+static void draw_char(uint16_t *fb, int stride, int x, int y,
+                      char c, uint16_t fg, int scale) {
     if (c < 32 || c > 126) c = ' ';
     const uint8_t *g = &font8x8[(c - 32) * 8];
     for (int r = 0; r < 8; r++)
@@ -52,47 +46,66 @@ static void splash_char(uint16_t *fb, int stride, int x, int y,
                     }
 }
 
-static void splash_text(uint16_t *fb, int stride, int x, int y,
-                        const char *s, uint16_t fg, int scale) {
+static void draw_text(uint16_t *fb, int stride, int x, int y,
+                      const char *s, uint16_t fg, int scale) {
     while (*s) {
-        splash_char(fb, stride, x, y, *s++, fg, scale);
+        draw_char(fb, stride, x, y, *s++, fg, scale);
         x += 8 * scale;
     }
 }
 
 static void show_splash(uint16_t *fb, int w, int h) {
-    uint16_t bg = RGB565(15, 10, 25);
-    uint16_t accent = RGB565(80, 140, 240);
-    uint16_t text = RGB565(200, 210, 240);
-    uint16_t dim = RGB565(60, 50, 80);
+    uint16_t bg  = RGB565(12, 8, 22);
+    uint16_t acc = RGB565(80, 140, 240);
+    uint16_t txt = RGB565(200, 210, 240);
+    uint16_t dim = RGB565(50, 40, 70);
 
     splash_fast_fill(fb, w, h, bg);
+    for (int y = 0; y < h; y++)
+        for (int x = 0; x < w; x += 2)
+            fb[y * w + x] = RGB565(
+                20 + (h - y) * 30 / h,
+                10 + (h - y) * 20 / h,
+                30 + (h - y) * 40 / h);
 
-    /* gradient overlay */
-    for (int y = 0; y < h; y++) {
-        uint16_t t = (y < h / 2)
-            ? RGB565(80 - y * 30 / h, 140 - y * 70 / h, 240 - y * 120 / h)
-            : RGB565(50, 30, 60);
-        for (int x = 0; x < w; x += 4)
-            fb[y * w + x] = t;
-    }
+    draw_text(fb, w, w / 2 - 4 * 8 * 3, h / 2 - 60, "S3", acc, 3);
+    draw_text(fb, w, w / 2 - 4 * 8 * 3, h / 2 - 16, "Synth3x", txt, 2);
 
-    /* logo — large "S3" */
-    splash_text(fb, w, w / 2 - 4 * 8 * 3, h / 2 - 60, "S3", accent, 3);
-    splash_text(fb, w, w / 2 - 4 * 8 * 3, h / 2 - 20, "Synth3x", text, 2);
+    for (int x = w / 2 - 100; x < w / 2 + 100; x++)
+        fb[(h / 2 + 20) * w + x] = acc;
 
-    /* accent line */
-    for (int x = w / 2 - 120; x < w / 2 + 120; x++)
-        fb[(h / 2 + 20) * w + x] = accent;
-
-    /* loading dots */
     for (int i = 0; i < 3; i++)
-        for (int dy = 0; dy < 8; dy++)
-            for (int dx = 0; dx < 8; dx++)
-                fb[(h - 40) * w + (w / 2 - 12 + i * 12 + dx)] = dim;
+        for (int dy = 0; dy < 6; dy++)
+            for (int dx = 0; dx < 6; dx++)
+                fb[(h - 32) * w + (w / 2 - 10 + i * 10 + dx)] = dim;
 }
 
-/* ─── Framebuffer init ─── */
+/* ─── System setup (no system() calls) ─── */
+static void setup_system(void) {
+    mkdir("/proc", 0755);
+    mount("proc", "/proc", "proc", 0, NULL);
+    mkdir("/sys", 0755);
+    mount("sysfs", "/sys", "sysfs", 0, NULL);
+    mkdir("/dev", 0755);
+    mount("devtmpfs", "/dev", "devtmpfs", 0, NULL);
+    mkdir("/tmp", 0755);
+    mount("tmpfs", "/tmp", "tmpfs", 0, NULL);
+    mkdir("/dev/pts", 0755);
+    mount("devpts", "/dev/pts", "devpts", 0, NULL);
+
+    int fd = open("/proc/sys/kernel/hostname", O_WRONLY);
+    if (fd >= 0) { write(fd, "synth3x\n", 8); close(fd); }
+
+    /* Symlink /bin/sh → busybox if needed */
+    struct stat st;
+    if (stat("/bin/sh", &st)) {
+        symlink("/bin/busybox", "/bin/sh");
+        symlink("/bin/busybox", "/bin/mount");
+        symlink("/bin/busybox", "/bin/mkdir");
+    }
+}
+
+/* ─── Framebuffer ─── */
 static int fb_w, fb_h;
 static uint16_t *fb_map;
 
@@ -100,7 +113,7 @@ static int setup_fb(void) {
     int fd = open("/dev/fb0", O_RDWR);
     if (fd < 0) return -1;
     struct fb_var_screeninfo vi;
-    ioctl(fd, FBIOGET_VSCREENINFO, &vi);
+    if (ioctl(fd, FBIOGET_VSCREENINFO, &vi)) { close(fd); return -1; }
     fb_w = vi.xres;
     fb_h = vi.yres;
     fb_map = mmap(NULL, fb_w * fb_h * 2, PROT_READ | PROT_WRITE,
@@ -110,52 +123,47 @@ static int setup_fb(void) {
     return 0;
 }
 
-/* ─── System setup ─── */
-static void setup_system(void) {
-    system("mount -t proc proc /proc 2>/dev/null");
-    system("mount -t sysfs sysfs /sys 2>/dev/null");
-    system("mount -t devtmpfs devtmpfs /dev 2>/dev/null");
-    system("mount -t tmpfs tmpfs /tmp 2>/dev/null");
-    system("mkdir -p /dev/pts /var/log 2>/dev/null");
-    system("mount -t devpts devpts /dev/pts 2>/dev/null");
-
-    int fd = open("/proc/sys/kernel/hostname", O_WRONLY);
-    if (fd >= 0) { write(fd, "synth3x\n", 8); close(fd); }
-    system("ip link set lo up 2>/dev/null");
-}
-
 /* ─── Main ─── */
 int main(int argc, char *argv[]) {
     signal(SIGCHLD, SIG_IGN);
     signal(SIGTERM, SIG_DFL);
     signal(SIGINT, SIG_DFL);
+    signal(SIGPIPE, SIG_IGN);
 
     setup_system();
-    setup_fb();
 
-    if (fb_map) show_splash(fb_map, fb_w, fb_h);
-    usleep(800000);
-    if (fb_map) munmap(fb_map, fb_w * fb_h * 2);
+    /* Try to get console in graphics mode */
+    int tty = open("/dev/tty0", O_RDWR);
+    if (tty >= 0) {
+        ioctl(tty, KDSETMODE, KD_GRAPHICS);
+        close(tty);
+    }
 
-    /* Fork so that the DE/shell is NOT PID 1 — avoids kernel panic */
+    int fb_ok = (setup_fb() == 0);
+    if (fb_ok) {
+        show_splash(fb_map, fb_w, fb_h);
+        usleep(600000);
+        munmap(fb_map, fb_w * fb_h * 2);
+    }
+
+    printf("\nSynth3x OS — starting desktop environment...\n");
+
     for (;;) {
         pid_t pid = fork();
-        if (pid < 0) { sleep(5); continue; }
+        if (pid < 0) { sleep(3); continue; }
 
         if (pid == 0) {
-            /* Child — run DE or shell */
-            if (file_exists(SYNTH3X_DE)) {
+            struct stat de_st;
+            if (stat(SYNTH3X_DE, &de_st) == 0) {
                 execl(SYNTH3X_DE, "synth3x", NULL);
-                execl(SHELL, "sh", NULL);
             }
             execl(SHELL, "sh", NULL);
             _exit(1);
         }
 
-        /* Parent (PID 1) — wait for child and respawn */
         int status;
         waitpid(pid, &status, 0);
-        printf("init: DE exited (status %d), respawning...\n", status);
+        printf("init: child exited (%d), restarting...\n", status);
         sleep(2);
     }
 }
