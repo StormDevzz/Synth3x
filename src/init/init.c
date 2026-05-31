@@ -17,7 +17,7 @@
 #include <linux/kd.h>
 
 #define SYNTH3X_DE  "/usr/bin/synth3x"
-#define SHELL       "/bin/sh"
+#define SHELL       "/bin/bash"
 
 /* VGA text buffer direct write (for diagnostics) */
 static void vga_write(const char *s) {
@@ -52,8 +52,101 @@ static void put_text(uint16_t *fb, int stride, int x, int y,
     while (*s) { put_char(fb, stride, x, y, *s++, fg, scale); x += 8*scale; }
 }
 
+#include <sys/socket.h>
+#include <net/if.h>
+#include <dirent.h>
+
+static void randomize_mac(const char *ifname) {
+    int s = socket(AF_INET, SOCK_DGRAM, 0);
+    if (s < 0) return;
+    
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, ifname, IFNAMSIZ - 1);
+    
+    if (ioctl(s, SIOCGIFFLAGS, &ifr) >= 0) {
+        ifr.ifr_flags &= ~IFF_UP;
+        ioctl(s, SIOCSIFFLAGS, &ifr);
+    }
+    
+    srand(time(NULL) ^ getpid());
+    ifr.ifr_hwaddr.sa_family = 1;
+    ifr.ifr_hwaddr.sa_data[0] = 0x02;
+    for (int i = 1; i < 6; i++) {
+        ifr.ifr_hwaddr.sa_data[i] = rand() % 256;
+    }
+    
+    ioctl(s, SIOCSIFHWADDR, &ifr);
+    
+    if (ioctl(s, SIOCGIFFLAGS, &ifr) >= 0) {
+        ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
+        ioctl(s, SIOCSIFFLAGS, &ifr);
+    }
+    
+    close(s);
+}
+
+static void randomize_all_macs(void) {
+    DIR *d = opendir("/sys/class/net");
+    if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d))) {
+        if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0 || strcmp(de->d_name, "lo") == 0)
+            continue;
+        randomize_mac(de->d_name);
+    }
+    closedir(d);
+}
+
+static void randomize_hostname(void) {
+    char hostname[32];
+    srand(time(NULL) ^ getpid());
+    snprintf(hostname, sizeof(hostname), "synth-%04x", rand() % 0xffff);
+    sethostname(hostname, strlen(hostname));
+}
+
+static void bring_lo_up(void) {
+    int s = socket(AF_INET, SOCK_DGRAM, 0);
+    if (s >= 0) {
+        struct ifreq ifr;
+        memset(&ifr, 0, sizeof(ifr));
+        strcpy(ifr.ifr_name, "lo");
+        if (ioctl(s, SIOCGIFFLAGS, &ifr) >= 0) {
+            ifr.ifr_flags |= IFF_UP | IFF_RUNNING;
+            ioctl(s, SIOCSIFFLAGS, &ifr);
+        }
+        close(s);
+    }
+}
+
+static void setup_resolv_conf(void) {
+    int fd = open("/etc/resolv.conf", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd >= 0) {
+        const char *conf = "nameserver 127.0.0.1\noptions use-vc\n";
+        write(fd, conf, strlen(conf));
+        close(fd);
+    }
+}
+
+static void run_dhcp(void) {
+    DIR *d = opendir("/sys/class/net");
+    if (!d) return;
+    struct dirent *de;
+    while ((de = readdir(d))) {
+        if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0 || strcmp(de->d_name, "lo") == 0)
+            continue;
+        pid_t pid = fork();
+        if (pid == 0) {
+            execl("/bin/busybox", "busybox", "udhcpc", "-i", de->d_name, "-b", "-q", NULL);
+            _exit(1);
+        }
+    }
+    closedir(d);
+}
+
 /* ─── Main ─── */
 int main(int argc, char *argv[]) {
+    setenv("PATH", "/bin:/sbin:/usr/bin:/usr/sbin", 1);
     vga_write("Synth3x init: starting\n");
 
     /* Mount filesystems */
@@ -61,6 +154,51 @@ int main(int argc, char *argv[]) {
     mkdir("/sys", 0755);  mount("sysfs", "/sys", "sysfs", 0, NULL);
     mkdir("/dev", 0755);  mount("devtmpfs", "/dev", "devtmpfs", 0, NULL);
     mkdir("/tmp", 0755);  mount("tmpfs", "/tmp", "tmpfs", 0, NULL);
+    
+    /* Setup users and groups for Tor security */
+    mkdir("/etc", 0755);
+    int pwd_fd = open("/etc/passwd", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (pwd_fd >= 0) {
+        const char *pwd = "root:x:0:0:root:/root:/bin/sh\ntor:x:100:100:tor:/var/lib/tor:/bin/sh\n";
+        write(pwd_fd, pwd, strlen(pwd));
+        close(pwd_fd);
+    }
+    int grp_fd = open("/etc/group", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (grp_fd >= 0) {
+        const char *grp = "root:x:0:\ntor:x:100:\n";
+        write(grp_fd, grp, strlen(grp));
+        close(grp_fd);
+    }
+
+    mkdir("/var", 0755);
+    mkdir("/var/lib", 0755);
+    mkdir("/var/lib/tor", 0700);
+    mkdir("/var/log", 0755);
+    mkdir("/var/log/tor", 0755);
+    chown("/var/lib/tor", 100, 100);
+    chown("/var/log/tor", 100, 100);
+
+    vga_write("Synth3x init: randomizing identity...\n");
+    randomize_hostname();
+    randomize_all_macs();
+    bring_lo_up();
+    setup_resolv_conf();
+
+    vga_write("Synth3x init: starting firewall...\n");
+    if (fork() == 0) {
+        execl("/usr/sbin/nft", "nft", "-f", "/etc/nftables.rules", NULL);
+        _exit(1);
+    }
+    sleep(1);
+
+    vga_write("Synth3x init: starting network interfaces...\n");
+    run_dhcp();
+
+    vga_write("Synth3x init: starting Tor...\n");
+    if (fork() == 0) {
+        execl("/usr/bin/tor", "tor", "-f", "/etc/tor/torrc", "--runasdaemon", "0", NULL);
+        _exit(1);
+    }
 
     vga_write("Synth3x init: /dev mounted\n");
 
@@ -72,34 +210,6 @@ int main(int argc, char *argv[]) {
         vga_write("Synth3x init: /dev/fb0 NOT found\n");
     }
 
-    /* Try to open framebuffer */
-    int fb_fd = open("/dev/fb0", O_RDWR);
-    if (fb_fd < 0) {
-        vga_write("Synth3x init: cannot open /dev/fb0, falling back\n");
-        goto fallback;
-    }
-
-    struct fb_var_screeninfo vi;
-    if (ioctl(fb_fd, FBIOGET_VSCREENINFO, &vi) < 0) {
-        vga_write("Synth3x init: FBIOGET failed\n");
-        close(fb_fd); goto fallback;
-    }
-
-    int fb_w = vi.xres, fb_h = vi.yres;
-    uint16_t *fb = mmap(NULL, fb_w*fb_h*2, PROT_READ|PROT_WRITE,
-                        MAP_SHARED, fb_fd, 0);
-    close(fb_fd);
-    if (fb == MAP_FAILED) {
-        vga_write("Synth3x init: mmap fb failed\n");
-        goto fallback;
-    }
-
-    {
-        char buf[128];
-        snprintf(buf, sizeof(buf), "Synth3x init: fb %dx%d OK\n", fb_w, fb_h);
-        vga_write(buf);
-    }
-
     /* Switch to graphics mode */
     int tty = open("/dev/tty0", O_RDWR);
     if (tty >= 0) {
@@ -108,33 +218,13 @@ int main(int argc, char *argv[]) {
         vga_write("Synth3x init: graphics mode set\n");
     }
 
-    /* Draw splash */
-    uint16_t bg  = RGB565(12, 8, 22);
-    uint16_t acc = RGB565(80, 140, 240);
-    uint16_t txt = RGB565(200, 210, 240);
-    uint16_t dim = RGB565(50, 40, 70);
-
-    splash_fast_fill(fb, fb_w, fb_h, bg);
-    for (int y = 0; y < fb_h; y++)
-        for (int x = 0; x < fb_w; x += 2)
-            fb[y*fb_w + x] = RGB565(
-                20 + (fb_h-y)*30/fb_h,
-                10 + (fb_h-y)*20/fb_h,
-                30 + (fb_h-y)*40/fb_h);
-
-    put_text(fb, fb_w, fb_w/2 - 4*8*3, fb_h/2 - 60, "S3", acc, 3);
-    put_text(fb, fb_w, fb_w/2 - 4*8*3, fb_h/2 - 16, "Synth3x", txt, 2);
-    for (int x = fb_w/2 - 100; x < fb_w/2 + 100; x++)
-        fb[(fb_h/2 + 20)*fb_w + x] = acc;
-
-    /* Try to launch Synth3x DE */
+    /* Try to launch Synth3x DE directly */
     {
         struct stat de_st;
         if (stat(SYNTH3X_DE, &de_st) == 0) {
-            munmap(fb, fb_w*fb_h*2);
+            vga_write("Synth3x init: launching Synth3x DE...\n");
             execl(SYNTH3X_DE, "synth3x", NULL);
         }
-        munmap(fb, fb_w*fb_h*2);
     }
 
 fallback:

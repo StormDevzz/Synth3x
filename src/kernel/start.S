@@ -1,53 +1,41 @@
-/* Synth3x OS — Multiboot2 header
- * Assembly — must come first in the binary
- */
-
 .section .multiboot, "a"
 .code32
 
-.align 8
+.align 4
+.long 0x1BADB002
+.long 0x00000003
+.long -(0x1BADB002 + 0x00000003)
 
-/* Multiboot2 header */
-.set MAGIC,         0xE85250D6
-.set ARCHITECTURE,  0  /* x86 (32-bit protected mode) */
-.set HEADER_LENGTH, header_end - header_start
-.set CHECKSUM,      -(MAGIC + ARCHITECTURE + HEADER_LENGTH)
+.section .note.Xen, "a", @note
+.align 4
+.long 4
+.long 4
+.long 3
+.asciz "Xen"
+.long _start
 
-header_start:
-    .long MAGIC
-    .long ARCHITECTURE
-    .long HEADER_LENGTH
-    .long CHECKSUM
-
-    /* End tag */
-    .word 0   /* type */
-    .word 0   /* flags */
-    .long 8   /* size */
-header_end:
-
-/* Entry point */
 .section .text
 .global _start
 _start:
-    /* Stack setup */
-    mov $stack_top, %esp
-    mov $stack_top, %ebp
+mov $stack_top, %esp
+mov $stack_top, %ebp
 
-    /* Push multiboot info pointer (ebx) and magic (eax) */
-    push %ebx
-    push %eax
+cmpl $0x2BADB002, %eax
+je 1f
+xorl %ebx, %ebx
+xorl %eax, %eax
+1:
+push %ebx
+push %eax
+call kernel_main
 
-    /* Call kernel_main */
-    call kernel_main
-
-    /* Should never reach here */
-    cli
+cli
 hang:
-    hlt
-    jmp hang
+hlt
+jmp hang
 
 .section .bss
 .align 16
 stack_bottom:
-    .skip 16384  /* 16KB stack */
+.skip 32768
 stack_top:

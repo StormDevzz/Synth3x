@@ -1,0 +1,35 @@
+========================================================================
+                 AmnesiaIDE — PERSISTENT STORAGE HANDBOOK
+========================================================================
+
+Amnesia OS runs entirely in RAM (Amnesic Mode). All system files, configurations,
+and local modifications in RAM are lost forever upon reboot or shutdown.
+
+To allow you to develop programs and keep your files across reboots, Amnesia OS 
+supports Physical Disk Persistence.
+
+------------------------------------------------------------------------
+1. HOW PERSISTENCE WORKS
+------------------------------------------------------------------------
+When you click [ SAVE & BUILD ] inside the IDE:
+  - The OS mounts the second partition of your virtual disk (/dev/vda2)
+    to the permanent mount point: /persist
+  - Your projects are copied into /persist/AmnesiaIDE/
+  - The IDE compiles your main.c using the physical toolchain.
+  - The binary is compiled to /persist/AmnesiaIDE/main.
+  - Files are safely synced to the hardware disk, ensuring that they 
+    survive amnesic memory purges!
+
+------------------------------------------------------------------------
+2. COMPILED BINARY EXECUTION
+------------------------------------------------------------------------
+To run your compiled persistent C program, open the Terminal [>_] and run:
+  $ /persist/AmnesiaIDE/main
+
+------------------------------------------------------------------------
+3. MANUAL DISK MOUNTING
+------------------------------------------------------------------------
+If you want to manually interact with your persistent files in the shell:
+  $ mount /dev/vda2 /persist
+  $ cd /persist/AmnesiaIDE/
+  $ ls -la

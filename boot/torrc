@@ -1,0 +1,22 @@
+# Hardened Tor Configuration for Synth3x-Anon
+User tor
+DataDirectory /var/lib/tor
+Log notice syslog
+Log notice file /var/log/tor/log
+
+# Transparent routing configuration
+TransPort 0.0.0.0:9040
+DNSPort 0.0.0.0:5353
+AvoidDiskWrites 1
+
+# Disable virtual address mapping / client port
+SocksPort 0
+ControlPort 9051
+CookieAuthentication 1
+
+# Performance & Security
+VirtualAddrNetworkIPv4 10.192.0.0/10
+VirtualAddrNetworkIPv6 [FC00::]/7
+AutomapHostsOnResolve 1
+ExcludeNodes {cn},{ru},{by},{ir},{sy},{kp}
+StrictNodes 1

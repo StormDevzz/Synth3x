@@ -19,7 +19,7 @@ KERNEL_OBJ     = $(KERNEL_ASM_OBJ) $(KERNEL_C_OBJ)
 
 .PHONY: all clean iso run
 
-all: $(KERNEL) $(INIT) $(SYNTH3X)
+all: $(KERNEL) $(INIT) $(SYNTH3X) $(WHO_BINS)
 
 # ─── Kernel assembly objects ───
 $(BUILD)/%.o: src/kernel/%.S
@@ -42,20 +42,34 @@ $(INIT): src/init/init.c $(INIT_ASM)
 	@echo "  ── Init: $@"
 
 # ─── Synth3x DE (static for initramfs) ───
-SYNTH3X_ASM = src/synth3x/fb_asm.S src/synth3x/font.S
+SYNTH3X_ASM = src/synth3x/font.S
 $(SYNTH3X): src/synth3x/synth3x.c $(SYNTH3X_ASM)
 	$(CC64) -static -O2 -Wall -o $@ src/synth3x/synth3x.c $(SYNTH3X_ASM) -lpthread -lrt
 	@echo "  ── Synth3x DE: $@"
 
+# ─── System Analyzers (who) ───
+WHO_BINS = $(BUILD)/ram_analyzer $(BUILD)/disk_analyzer $(BUILD)/device_names $(BUILD)/usb_analyzer $(BUILD)/cable_analyzer
+
+$(BUILD)/ram_analyzer: src/who/ram_analyzer.c
+	$(CC64) -static -O2 -Wall -o $@ $<
+$(BUILD)/disk_analyzer: src/who/disk_analyzer.c
+	$(CC64) -static -O2 -Wall -o $@ $<
+$(BUILD)/device_names: src/who/device_names.c
+	$(CC64) -static -O2 -Wall -o $@ $<
+$(BUILD)/usb_analyzer: src/who/usb_analyzer.c
+	$(CC64) -static -O2 -Wall -o $@ $<
+$(BUILD)/cable_analyzer: src/who/cable_analyzer.c
+	$(CC64) -static -O2 -Wall -o $@ $<
 # ─── Initramfs ───
 INITRAMFS = $(BUILD)/initrd.img
-$(INITRAMFS): $(INIT) $(SYNTH3X)
+$(INITRAMFS): $(INIT) $(SYNTH3X) $(WHO_BINS)
 	@echo "  ── Building initramfs..."
 	@mkdir -p $(BUILD)/initramfs/bin $(BUILD)/initramfs/usr/bin
 	@mkdir -p $(BUILD)/initramfs/dev $(BUILD)/initramfs/proc
 	@mkdir -p $(BUILD)/initramfs/sys $(BUILD)/initramfs/tmp
 	@cp $(INIT) $(BUILD)/initramfs/init
 	@cp $(SYNTH3X) $(BUILD)/initramfs/usr/bin/synth3x
+	@cp $(WHO_BINS) $(BUILD)/initramfs/usr/bin/
 	@cp /usr/bin/busybox $(BUILD)/initramfs/bin/busybox
 	@cd $(BUILD)/initramfs && ln -sf busybox bin/sh 2>/dev/null; \
 		for app in ls cat mount umount ps kill mkdir cp mv rm dmesg; do \

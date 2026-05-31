@@ -1,0 +1,43 @@
+#!/usr/sbin/nft -f
+
+flush ruleset
+
+table ip filter {
+    chain input {
+        type filter hook input priority 0; policy drop;
+        iifname "lo" accept
+        ct state established,related accept
+    }
+
+    chain forward {
+        type filter hook forward priority 0; policy drop;
+    }
+
+    chain output {
+        type filter hook output priority 0; policy drop;
+        oifname "lo" accept
+        
+        # Allow Tor user (UID 100/tor) to connect to the external network
+        meta skuid "tor" accept
+        
+        # Allow loopback/internal services
+        ip daddr 127.0.0.1 accept
+    }
+}
+
+table ip nat {
+    chain output {
+        type nat hook output priority 0; policy accept;
+        
+        # Do not redirect local interface or Tor user traffic
+        oifname "lo" accept
+        meta skuid "tor" accept
+        
+        # Redirect DNS requests (UDP/TCP port 53) to Tor's DNSPort (5353)
+        udp dport 53 redirect to :5353
+        tcp dport 53 redirect to :5353
+        
+        # Redirect all other TCP traffic to Tor's TransPort (9040)
+        ip protocol tcp redirect to :9040
+    }
+}

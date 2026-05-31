@@ -30,6 +30,10 @@ SECTIONS {
         *(.bss.*)
     }
 
+    .note.Xen : {
+        KEEP(*(.note.Xen))
+    }
+
     /DISCARD/ : {
         *(.comment)
         *(.note.*)
