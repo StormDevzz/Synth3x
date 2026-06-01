@@ -1,0 +1,100 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [ main, master ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version
+        id: version
+        run: echo "version=$(cat VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cpio gzip xorriso
+
+      - name: Build ISO
+        run: bash scripts/build_anon_iso.sh
+
+      - name: Store ISO as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: synth3x-anon-v${{ steps.version.outputs.version }}
+          path: iso/synth3x-anon.iso
+
+      - name: Check tag existence
+        id: check_tag
+        run: |
+          TAG="v${{ steps.version.outputs.version }}"
+          if git tag -l "$TAG" | grep -q .; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Synth3x-Anon v${{ steps.version.outputs.version }}
+          files: iso/synth3x-anon.iso
+          generate_release_notes: true
+
+      - name: Discord notification
+        if: always()
+        shell: bash
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG_EXISTS: ${{ steps.check_tag.outputs.exists }}
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "No DISCORD_WEBHOOK secret set, skipping notification"
+            exit 0
+          fi
+
+          if [ "${{ job.status }}" = "success" ]; then
+            if [ "$TAG_EXISTS" = "false" ]; then
+              TAG="[RELEASE]"
+              ACTION="New release: Synth3x-Anon v${VERSION}"
+            else
+              TAG="[BUILD]"
+              ACTION="Build OK: Synth3x-Anon v${VERSION} (no version change)"
+            fi
+          else
+            TAG="[FAIL]"
+            ACTION="Build failed: Synth3x-Anon v${VERSION}"
+          fi
+
+          COMMIT_MSG_ESCAPED=$(echo "$COMMIT_MSG" | head -5 | jq -Rs .)
+
+          curl -s -H "Content-Type: application/json" \
+            -X POST "$DISCORD_WEBHOOK" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"${TAG} Synth3x-Anon v${VERSION}\",
+                \"description\": ${COMMIT_MSG_ESCAPED},
+                \"color\": $([ \"${{ job.status }}\" = \"success\" ] && echo 5763719 || echo 15548997),
+                \"fields\": [
+                  {\"name\": \"Status\", \"value\": \"$ACTION\", \"inline\": true},
+                  {\"name\": \"Commit\", \"value\": \"[${GITHUB_SHA::7}](${COMMIT_URL})\", \"inline\": true}
+                ],
+                \"url\": \"${RUN_URL}\",
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
+              }]
+            }" || echo "Webhook send failed (non-critical)"

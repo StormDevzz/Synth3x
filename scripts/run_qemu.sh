@@ -1,5 +1,5 @@
 #!/bin/bash
-# Synth3x-Anon — QEMU Launch Script
+# Synth3x-Anon v0.8 — QEMU Launcher (with Touchpad, Browser, HDD support)
 set -e
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
@@ -10,64 +10,53 @@ DISK_PATH="build/synth3x-anon.qcow2"
 
 if [ ! -f "$ISO_PATH" ]; then
     echo "  [✗] ISO not found: $ISO_PATH"
-    echo "      Please run './scripts/build_anon_iso.sh' first to compile the distribution."
+    echo "      Run './scripts/build_anon_iso.sh' first."
     exit 1
 fi
 
 echo "  ╔══════════════════════════════════════════════════════════╗"
-echo "  ║        Synth3x-Anon — Booting Virtual Machine            ║"
-echo "  ║        Memory: 1024MB | VGA: std | Net: User-Mode        ║"
+echo "  ║   Synth3x-Anon v0.8 — QEMU Virtual Machine              ║"
+echo "  ║   Memory: 1024MB | VGA: std | Graphics: bochs-drm       ║"
+echo "  ║   Mouse: usb-tablet (works without grab)                 ║"
+echo "  ║   Touchpad: auto-detect | Browser: w3m | syn pkg mgr   ║"
 echo "  ╚══════════════════════════════════════════════════════════╝"
 echo ""
 
-# Automatically check and create the virtual hard disk for real installations
+# Create virtual disk for HDD install if not exists
 if [ ! -f "$DISK_PATH" ]; then
-    echo "  -- Virtual disk image not found at $DISK_PATH"
-    echo "  -- Automatically creating a new 20GB QCOW2 virtual disk..."
+    echo "  -- Creating 32GB QCOW2 virtual disk for HDD install..."
     mkdir -p build
-    qemu-img create -f qcow2 "$DISK_PATH" 20G >/dev/null
-    echo "  ✓ Virtual disk created successfully!"
+    qemu-img create -f qcow2 "$DISK_PATH" 32G >/dev/null
+    echo "  ✓ Virtual disk: $DISK_PATH"
     echo ""
 fi
 
-# Check KVM availability
+# Check KVM
 KVM_ACCEL="-accel kvm -cpu host"
 if ! [ -w /dev/kvm ]; then
-    echo "  ⚠ /dev/kvm is not writable. Running QEMU without KVM acceleration (slower)..."
+    echo "  ⚠ KVM not available. Running without acceleration."
     KVM_ACCEL="-cpu Penryn"
 fi
 
-# Locate UEFI firmware (OVMF) on the host for QEMU UEFI boot
-UEFI_BIOS=""
-for path in \
-    /usr/share/edk2/x64/OVMF.4m.fd \
-    /usr/share/edk2/x64/OVMF_CODE.4m.fd \
-    /usr/share/edk2-ovmf/x64/OVMF_CODE.fd \
-    /usr/share/OVMF/OVMF_CODE.fd \
-    /usr/share/ovmf/x64/OVMF.fd \
-    /usr/share/qemu/edk2-x86_64-code.fd \
-    /usr/share/ovmf/OVMF.fd \
-    /usr/share/edk2/x64/OVMF.fd; do
-    if [ -f "$path" ]; then
-        UEFI_BIOS="-bios $path"
-        break
-    fi
-done
+echo "  Booting Synth3x-Anon v0.8..."
+echo "  Features: syn, w3m browser, touchpad support, Gentoo installer"
+echo "  TIP: Click inside VM window to capture keyboard"
+echo "       Mouse works immediately (no grab needed)"
+echo ""
 
-if [ -z "$UEFI_BIOS" ]; then
-    echo "  ⚠ UEFI firmware (OVMF) not found on host."
-    echo "    QEMU will boot Live ISO in Legacy mode."
-fi
-
-# Run QEMU with the virtual disk, virtio network card and user networking
+# Launch with usb-tablet for mouse (no grab needed) + std VGA (bochs driver works)
 qemu-system-x86_64 \
-    $UEFI_BIOS \
     -cdrom "$ISO_PATH" \
     -drive file="$DISK_PATH",if=virtio \
     -m 1024 \
     $KVM_ACCEL \
     -vga std \
-    -device usb-ehci -device usb-tablet \
+    -usb \
+    -device usb-tablet \
     -net nic,model=virtio \
-    -net user \
-    -serial stdio
+    -net user,hostfwd=tcp::2222-:22 \
+    -audiodev none,id=none \
+    -display gtk
+
+echo ""
+echo "  VM stopped."
