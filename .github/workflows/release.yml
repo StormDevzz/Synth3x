@@ -100,15 +100,19 @@ jobs:
 
       - name: Create Release
         if: steps.verify_iso.outputs.exists == 'true' && steps.check_tag.outputs.exists == 'false'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: Synth3x-Anon v${{ steps.version.outputs.version }}
-          body_path: /tmp/release_body.md
-          files: iso/synth3x-anon.iso
-          make_latest: true
-          fail_on_unmatched_files: true
-          generate_release_notes: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.version.outputs.version }}"
+          echo "Creating release v${V}..."
+          gh release create "v${V}" \
+            --title "Synth3x-Anon v${V}" \
+            --notes-file /tmp/release_body.md \
+            --generate-notes \
+            --latest \
+            iso/synth3x-anon.iso
+          echo "✓ Release v${V} created with ISO attached"
 
       - name: Discord notification
         if: always()
