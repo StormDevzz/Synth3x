@@ -51,7 +51,7 @@ $(INIT): src/init/init.c $(INIT_ASM) $(HW_ASM) $(HW_SRC)
 # ─── Synth3x DE (static for initramfs) ───
 SYNTH3X_ASM = src/synth3x/font.S
 $(SYNTH3X): src/synth3x/synth3x.c $(SYNTH3X_ASM)
-	$(CC64) -static -O2 -Wall -o $@ src/synth3x/synth3x.c $(SYNTH3X_ASM) -lpthread -lrt
+	$(CC64) -static -O2 -Wall -o $@ src/synth3x/synth3x.c $(SYNTH3X_ASM) -lpthread -lrt -lm
 	@echo "  ── Synth3x DE: $@"
 
 # ─── System Commands ───

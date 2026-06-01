@@ -32,7 +32,7 @@ gcc -static -march=x86-64 -mno-avx -O2 -Wall \
 echo "  ✓ Init (PID 1) with HW detection compiled"
 
 echo "  -- Compiling Synth3x DE..."
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/synth3x src/synth3x/synth3x.c src/synth3x/font.S -lpthread -lrt
+gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/synth3x src/synth3x/synth3x.c src/synth3x/font.S -lpthread -lrt -lm
 echo "  ✓ Synth3x DE compiled"
 
 echo "  -- Compiling driver check tools..."
