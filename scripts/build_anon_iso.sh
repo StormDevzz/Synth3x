@@ -1,6 +1,7 @@
 #!/bin/bash
 # Synth3x-Anon — Automated Live ISO Builder v0.8 (Gentoo Profile)
 set -e
+set +o pipefail 2>/dev/null || true
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$DIR"
@@ -216,8 +217,8 @@ if [ -d /usr/lib/modules/6.18.33-2-cachyos-lts ]; then
     KVER="6.18.33-2-cachyos-lts"
 elif [ -d "/lib/modules/$(uname -r)" ]; then
     KVER="$(uname -r)"
-elif ls -d /usr/lib/modules/*/ 2>/dev/null | head -1; then
-    KVER=$(basename "$(ls -d /usr/lib/modules/*/ 2>/dev/null | head -1)")
+elif [ -d /usr/lib/modules ] && KVER=$(ls -d /usr/lib/modules/*/ 2>/dev/null | head -1) && [ -n "$KVER" ]; then
+    KVER=$(basename "$KVER")
 else
     echo "  ⚠ No kernel modules directory found, skipping GPU modules"
     KVER=""
@@ -266,32 +267,30 @@ cd "$DIR"
 echo "  ✓ Compressed initramfs size: $(du -h build/initrd.img | cut -f1)"
 
 echo "[5/6] Creating bootable Live ISO..."
-rm -rf iso
-mkdir -p iso/boot/grub
+rm -rf iso || true
+mkdir -p iso/boot/grub || true
 
 # Auto-detect and copy kernel
 KERNEL_COPIED=false
+ls /boot/ 2>/dev/null || echo "  ⚠ (no /boot directory)"
 if [ -n "$KVER" ] && [ -f "/usr/lib/modules/$KVER/vmlinuz" ]; then
-    cp "/usr/lib/modules/$KVER/vmlinuz" iso/boot/vmlinuz-linux 2>/dev/null
-    echo "  ✓ Kernel from /usr/lib/modules/$KVER/vmlinuz"
-    KERNEL_COPIED=true
+    cp "/usr/lib/modules/$KVER/vmlinuz" iso/boot/vmlinuz-linux 2>/dev/null && KERNEL_COPIED=true
 fi
 if [ "$KERNEL_COPIED" = false ] && [ -f /boot/vmlinuz-linux ]; then
-    cp /boot/vmlinuz-linux iso/boot/vmlinuz-linux 2>/dev/null
-    echo "  ✓ Kernel copied from /boot/vmlinuz-linux"
-    KERNEL_COPIED=true
+    cp /boot/vmlinuz-linux iso/boot/vmlinuz-linux 2>/dev/null && KERNEL_COPIED=true
 fi
 if [ "$KERNEL_COPIED" = false ]; then
+    shopt -s nullglob 2>/dev/null || true
     for f in /boot/vmlinuz-*; do
         if [ -f "$f" ]; then
-            cp "$f" iso/boot/vmlinuz-linux 2>/dev/null
-            echo "  ✓ Kernel copied from $f"
-            KERNEL_COPIED=true
-            break
+            cp "$f" iso/boot/vmlinuz-linux 2>/dev/null && { KERNEL_COPIED=true; break; }
         fi
     done
+    shopt -u nullglob 2>/dev/null || true
 fi
-if [ "$KERNEL_COPIED" = false ]; then
+if [ "$KERNEL_COPIED" = true ]; then
+    echo "  ✓ Kernel found and copied"
+else
     echo "  ⚠ No host kernel found! Provide kernel at iso/boot/vmlinuz-linux"
 fi
 
