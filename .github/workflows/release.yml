@@ -45,16 +45,6 @@ jobs:
           name: synth3x-anon-v${{ steps.version.outputs.version }}
           path: iso/synth3x-anon.iso
 
-      - name: Check tag existence
-        id: check_tag
-        run: |
-          TAG="v${{ steps.version.outputs.version }}"
-          if git tag -l "$TAG" | grep -q .; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Build release body
         run: |
           F=/tmp/release_body.md
@@ -98,21 +88,30 @@ jobs:
           echo "- Driver checks (check-drivers-all)" >> $F
           echo "- Built-in firewall (nftables)" >> $F
 
-      - name: Create Release
-        if: steps.verify_iso.outputs.exists == 'true' && steps.check_tag.outputs.exists == 'false'
+      - name: Create or Update Release
+        if: steps.verify_iso.outputs.exists == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           V="${{ steps.version.outputs.version }}"
-          echo "Creating release v${V}..."
-          gh release create "v${V}" \
-            --title "Synth3x-Anon v${V}" \
-            --notes-file /tmp/release_body.md \
-            --generate-notes \
-            --latest \
-            iso/synth3x-anon.iso
-          echo "✓ Release v${V} created with ISO attached"
+          TAG="v${V}"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release ${TAG} exists — uploading ISO..."
+            gh release upload "$TAG" iso/synth3x-anon.iso --clobber 2>&1 || true
+            gh release edit "$TAG" --latest --notes-file /tmp/release_body.md 2>&1 || true
+            echo "✓ ISO uploaded to existing release ${TAG}"
+          else
+            echo "Creating release ${TAG}..."
+            gh release create "$TAG" \
+              --title "Synth3x-Anon v${V}" \
+              --notes-file /tmp/release_body.md \
+              --generate-notes \
+              --latest \
+              iso/synth3x-anon.iso
+            echo "✓ Release ${TAG} created with ISO attached"
+          fi
 
       - name: Discord notification
         if: always()
@@ -120,7 +119,6 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           VERSION: ${{ steps.version.outputs.version }}
-          TAG_EXISTS: ${{ steps.check_tag.outputs.exists }}
           COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -131,13 +129,8 @@ jobs:
 
           STATUS="${{ job.status }}"
           if [ "$STATUS" = "success" ]; then
-            if [ "$TAG_EXISTS" = "false" ]; then
-              TAG="[RELEASE]"
-              ACTION="New release: Synth3x-Anon v${VERSION}"
-            else
-              TAG="[BUILD]"
-              ACTION="Build OK: Synth3x-Anon v${VERSION} (no version change)"
-            fi
+            TAG="[BUILD]"
+            ACTION="Build OK: Synth3x-Anon v${VERSION}"
           else
             TAG="[FAIL]"
             ACTION="Build failed: Synth3x-Anon v${VERSION}"
