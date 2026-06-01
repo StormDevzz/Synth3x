@@ -281,6 +281,7 @@ for src in \
     if [ "$KERNEL_COPIED" = true ]; then break; fi
     if [ -f "$src" ]; then
         if cp "$src" iso/boot/vmlinuz-linux 2>/dev/null || sudo cp "$src" iso/boot/vmlinuz-linux 2>/dev/null; then
+            chmod 644 iso/boot/vmlinuz-linux 2>/dev/null || sudo chmod 644 iso/boot/vmlinuz-linux 2>/dev/null || true
             echo "  ✓ Kernel copied from $src"
             KERNEL_COPIED=true
         fi
@@ -291,8 +292,9 @@ if [ "$KERNEL_COPIED" = false ]; then
     ls /boot/ 2>/dev/null || true
 fi
 
-cp build/initrd.img iso/boot/initrd.img || true
-cp boot/grub.cfg iso/boot/grub/grub.cfg || true
+cp build/initrd.img iso/boot/initrd.img 2>/dev/null || true
+cp boot/grub.cfg iso/boot/grub/grub.cfg 2>/dev/null || true
+chmod -R 755 iso/boot/ 2>/dev/null || true
 
 if command -v grub-mkrescue >/dev/null 2>&1; then
     echo "[6/6] Building ISO with grub-mkrescue..."
