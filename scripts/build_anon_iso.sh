@@ -272,26 +272,23 @@ mkdir -p iso/boot/grub || true
 
 # Auto-detect and copy kernel
 KERNEL_COPIED=false
-ls /boot/ 2>/dev/null || echo "  ⚠ (no /boot directory)"
-if [ -n "$KVER" ] && [ -f "/usr/lib/modules/$KVER/vmlinuz" ]; then
-    cp "/usr/lib/modules/$KVER/vmlinuz" iso/boot/vmlinuz-linux 2>/dev/null && KERNEL_COPIED=true
-fi
-if [ "$KERNEL_COPIED" = false ] && [ -f /boot/vmlinuz-linux ]; then
-    cp /boot/vmlinuz-linux iso/boot/vmlinuz-linux 2>/dev/null && KERNEL_COPIED=true
-fi
-if [ "$KERNEL_COPIED" = false ]; then
-    shopt -s nullglob 2>/dev/null || true
-    for f in /boot/vmlinuz-*; do
-        if [ -f "$f" ]; then
-            cp "$f" iso/boot/vmlinuz-linux 2>/dev/null && { KERNEL_COPIED=true; break; }
+# Try multiple locations (use sudo in case vmlinuz is root-readable only)
+for src in \
+    "/usr/lib/modules/$KVER/vmlinuz" \
+    "/boot/vmlinuz-linux" \
+    "/boot/vmlinuz" \
+    /boot/vmlinuz-*; do
+    if [ "$KERNEL_COPIED" = true ]; then break; fi
+    if [ -f "$src" ]; then
+        if cp "$src" iso/boot/vmlinuz-linux 2>/dev/null || sudo cp "$src" iso/boot/vmlinuz-linux 2>/dev/null; then
+            echo "  ✓ Kernel copied from $src"
+            KERNEL_COPIED=true
         fi
-    done
-    shopt -u nullglob 2>/dev/null || true
-fi
-if [ "$KERNEL_COPIED" = true ]; then
-    echo "  ✓ Kernel found and copied"
-else
-    echo "  ⚠ No host kernel found! Provide kernel at iso/boot/vmlinuz-linux"
+    fi
+done
+if [ "$KERNEL_COPIED" = false ]; then
+    echo "  ⚠ No host kernel found at /boot/vmlinuz*"
+    ls /boot/ 2>/dev/null || true
 fi
 
 cp build/initrd.img iso/boot/initrd.img || true
