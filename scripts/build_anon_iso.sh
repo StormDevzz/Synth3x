@@ -211,15 +211,33 @@ cp boot/nftables.rules "$INITRAMFS_DIR/etc/nftables.rules"
 # Copy GPU kernel modules for framebuffer (QEMU + real HW)
 echo "  -- Copying GPU kernel modules..."
 mkdir -p "$INITRAMFS_DIR/lib/modules"
-# Use kernel version matching the vmlinuz we'll copy
-KVER="6.18.33-2-cachyos-lts"
-for mod in bochs virtio-gpu ttm serio_raw psmouse mousedev virtio_input; do
-    src=$(find /usr/lib/modules/$KVER -name "${mod}.ko.zst" | head -1)
-    if [ -n "$src" ]; then
-        zstd -dq "$src" -o "$INITRAMFS_DIR/lib/modules/${mod}.ko" 2>/dev/null
-        echo "    ✓ ${mod}.ko"
-    fi
-done
+# Auto-detect kernel version
+if [ -d /usr/lib/modules/6.18.33-2-cachyos-lts ]; then
+    KVER="6.18.33-2-cachyos-lts"
+elif [ -d "/lib/modules/$(uname -r)" ]; then
+    KVER="$(uname -r)"
+elif ls -d /usr/lib/modules/*/ 2>/dev/null | head -1; then
+    KVER=$(basename "$(ls -d /usr/lib/modules/*/ 2>/dev/null | head -1)")
+else
+    echo "  ⚠ No kernel modules directory found, skipping GPU modules"
+    KVER=""
+fi
+if [ -n "$KVER" ]; then
+    MODDIR="/lib/modules/$KVER"
+    [ ! -d "$MODDIR" ] && MODDIR="/usr/lib/modules/$KVER"
+    echo "    Kernel modules: $MODDIR"
+    for mod in bochs virtio-gpu ttm serio_raw psmouse mousedev virtio_input; do
+        src=$(find "$MODDIR" -name "${mod}.ko*" -type f 2>/dev/null | head -1)
+        if [ -n "$src" ]; then
+            case "$src" in
+                *.zst) zstd -dq "$src" -o "$INITRAMFS_DIR/lib/modules/${mod}.ko" 2>/dev/null ;;
+                *.xz)  xz -dc "$src" > "$INITRAMFS_DIR/lib/modules/${mod}.ko" 2>/dev/null ;;
+                *)     cp "$src" "$INITRAMFS_DIR/lib/modules/${mod}.ko" 2>/dev/null ;;
+            esac
+            echo "    ✓ ${mod}.ko"
+        fi
+    done
+fi
 
 echo "  -- Creating /etc/sudoers for sudo support..."
 cat << 'EOF' > "$INITRAMFS_DIR/etc/sudoers"
@@ -251,25 +269,38 @@ echo "[5/6] Creating bootable Live ISO..."
 rm -rf iso
 mkdir -p iso/boot/grub
 
-# Use the same kernel version for both kernel and modules
-KERNEL_SRC="/usr/lib/modules/$KVER/vmlinuz"
-if [ -f /boot/vmlinuz-linux ] && cp /boot/vmlinuz-linux iso/boot/vmlinuz-linux 2>/dev/null; then
+# Auto-detect and copy kernel
+KERNEL_COPIED=false
+if [ -n "$KVER" ] && [ -f "/usr/lib/modules/$KVER/vmlinuz" ]; then
+    cp "/usr/lib/modules/$KVER/vmlinuz" iso/boot/vmlinuz-linux 2>/dev/null
+    echo "  ✓ Kernel from /usr/lib/modules/$KVER/vmlinuz"
+    KERNEL_COPIED=true
+fi
+if [ "$KERNEL_COPIED" = false ] && [ -f /boot/vmlinuz-linux ]; then
+    cp /boot/vmlinuz-linux iso/boot/vmlinuz-linux 2>/dev/null
     echo "  ✓ Kernel copied from /boot/vmlinuz-linux"
-elif [ -n "$(find /boot -maxdepth 1 -name "vmlinuz*" -type f 2>/dev/null | head -n 1)" ] && \
-     cp "$(find /boot -maxdepth 1 -name "vmlinuz*" -type f 2>/dev/null | head -n 1)" iso/boot/vmlinuz-linux 2>/dev/null; then
-    echo "  ✓ Kernel copied from /boot/vmlinuz* wildcard"
-elif [ -f "$KERNEL_SRC" ] && cp "$KERNEL_SRC" iso/boot/vmlinuz-linux 2>/dev/null; then
-    echo "  ✓ Kernel copied from $KERNEL_SRC"
-else
+    KERNEL_COPIED=true
+fi
+if [ "$KERNEL_COPIED" = false ]; then
+    for f in /boot/vmlinuz-*; do
+        if [ -f "$f" ]; then
+            cp "$f" iso/boot/vmlinuz-linux 2>/dev/null
+            echo "  ✓ Kernel copied from $f"
+            KERNEL_COPIED=true
+            break
+        fi
+    done
+fi
+if [ "$KERNEL_COPIED" = false ]; then
     echo "  ⚠ No host kernel found! Provide kernel at iso/boot/vmlinuz-linux"
 fi
 
-cp build/initrd.img iso/boot/initrd.img
-cp boot/grub.cfg iso/boot/grub/grub.cfg
+cp build/initrd.img iso/boot/initrd.img || true
+cp boot/grub.cfg iso/boot/grub/grub.cfg || true
 
 if command -v grub-mkrescue >/dev/null 2>&1; then
     echo "[6/6] Building ISO with grub-mkrescue..."
-    grub-mkrescue -o iso/synth3x-anon.iso iso -- -volid "SYNTH3X_ANON" >/dev/null 2>&1
+    grub-mkrescue -o iso/synth3x-anon.iso iso -- -volid "SYNTH3X_ANON" 2>&1 || echo "⚠ grub-mkrescue failed (ISO may be incomplete)"
     echo ""
     echo "  ── Synth3x-Anon v0.8 ISO ready ──"
     echo "  File: iso/synth3x-anon.iso"

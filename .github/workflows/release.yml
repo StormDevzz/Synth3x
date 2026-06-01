@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cpio gzip xorriso
+          sudo apt-get install -y cpio gzip xorriso zstd xz-utils
 
       - name: Build ISO
         run: bash scripts/build_anon_iso.sh
