@@ -299,7 +299,7 @@ cp boot/grub.cfg iso/boot/grub/grub.cfg || true
 
 if command -v grub-mkrescue >/dev/null 2>&1; then
     echo "[6/6] Building ISO with grub-mkrescue..."
-    grub-mkrescue -o iso/synth3x-anon.iso iso -- -volid "SYNTH3X_ANON" 2>&1 || echo "⚠ grub-mkrescue failed (ISO may be incomplete)"
+    grub-mkrescue -o iso/synth3x-anon.iso iso -- -volid "SYNTH3X_ANON" 2>&1 || { echo "  [✗] grub-mkrescue failed!"; exit 1; }
     echo ""
     echo "  ── Synth3x-Anon v0.8 ISO ready ──"
     echo "  File: iso/synth3x-anon.iso"

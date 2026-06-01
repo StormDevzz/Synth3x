@@ -27,7 +27,19 @@ jobs:
       - name: Build ISO
         run: bash scripts/build_anon_iso.sh
 
+      - name: Verify ISO exists
+        id: verify_iso
+        run: |
+          if [ -f iso/synth3x-anon.iso ] && [ -s iso/synth3x-anon.iso ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "ISO size: $(du -h iso/synth3x-anon.iso | cut -f1)"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "ISO file not found or empty!"
+          fi
+
       - name: Store ISO as artifact
+        if: steps.verify_iso.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: synth3x-anon-v${{ steps.version.outputs.version }}
@@ -37,20 +49,74 @@ jobs:
         id: check_tag
         run: |
           TAG="v${{ steps.version.outputs.version }}"
-          if git tag -l "$TAG" | grep -q .; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
+          if git fetch --tags 2>/dev/null; then
+            if git tag -l "$TAG" | grep -q .; then
+              echo "exists=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "exists=false" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Build release body
+        id: release_body
+        run: |
+          cat << 'BODY' > /tmp/release_body.md
+  ## How to use
+
+  ### Write to USB flash drive
+  Find your USB device (usually `/dev/sdX` or `/dev/nvme0n1`):
+  ```
+  lsblk
+  ```
+  Write the ISO (replace `/dev/sdX` with your device):
+  ```
+  sudo dd if=synth3x-anon.iso of=/dev/sdX bs=4M status=progress
+  sudo sync
+  ```
+  > **WARNING:** This will erase ALL data on `/dev/sdX`!
+
+  ### Boot in QEMU
+  ```
+  qemu-system-x86_64 -cdrom synth3x-anon.iso -m 1024 -accel kvm -vga std -device usb-tablet -display gtk
+  ```
+
+  ### Boot from USB
+  1. Restart your computer
+  2. Press F12 / F2 / Del / Esc during boot (varies by manufacturer)
+  3. Select your USB drive from the boot menu
+  4. Synth3x-Anon will load into the AmnesiaDE desktop
+
+  ### Default credentials (live session)
+  - User: `root` (no password)
+  - Desktop: AmnesiaDE v${{ steps.version.outputs.version }}
+
+  ### Features
+  - AmnesiaDE graphical framebuffer desktop
+  - Web browser (w3m — type `browser` in terminal, switch with Alt+F1/F7)
+  - `syn` package manager (inst/binary/list/search/remove/update)
+  - Hardware detection (Lenovo, Acer, Dell, HP + generic)
+  - Internet setup guide (Ethernet, USB tethering, static IP)
+  - Hard disk installer (`synth3x-installer`)
+  - Tor launcher (`tor-start` — saves ~30MB RAM when idle)
+  - Driver checks (`check-drivers-all`)
+  - Built-in firewall (nftables)
+  BODY
+          echo "body<<BODYEOF" >> "$GITHUB_OUTPUT"
+          cat /tmp/release_body.md >> "$GITHUB_OUTPUT"
+          echo "BODYEOF" >> "$GITHUB_OUTPUT"
+
       - name: Create Release
-        if: steps.check_tag.outputs.exists == 'false'
+        if: steps.verify_iso.outputs.exists == 'true' && steps.check_tag.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: Synth3x-Anon v${{ steps.version.outputs.version }}
+          body: ${{ steps.release_body.outputs.body }}
           files: iso/synth3x-anon.iso
-          generate_release_notes: true
+          make_latest: true
+          fail_on_unmatched_files: true
 
       - name: Discord notification
         if: always()
