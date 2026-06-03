@@ -32,9 +32,14 @@ gcc -static -march=x86-64 -mno-avx -O2 -Wall \
     src/hardware/hw_cpuid.S src/hardware/hw_detect.c -lpthread -lrt
 echo "  ✓ Init (PID 1) with HW detection compiled"
 
-echo "  -- Compiling Synth3x DE..."
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/synth3x src/synth3x/synth3x.c src/synth3x/font.S -lpthread -lrt -lm
-echo "  ✓ Synth3x DE compiled"
+echo "  -- Compiling Synth3x Wayland compositor..."
+gcc -march=x86-64 -mno-avx -O2 -Wall \
+    -I src/compositor -I/usr/include/libdrm -I/usr/include/drm \
+    -o build/synth3x src/compositor/main.c src/compositor/drm.c \
+    src/compositor/input.c src/compositor/wl_server.c \
+    src/compositor/shell.c src/compositor/render.S src/compositor/font.S \
+    -lpthread -lrt -lm -ldrm
+echo "  ✓ Synth3x Wayland compositor compiled"
 
 echo "  -- Compiling driver check tools..."
 mkdir -p build/checks
@@ -195,7 +200,7 @@ fi
 
 copy_deps "$TOR_BIN" "$INITRAMFS_DIR"
 copy_deps "$NFT_BIN" "$INITRAMFS_DIR"
-copy_deps "$INITRAMFS_DIR/usr/bin/synth3x"
+copy_deps "$INITRAMFS_DIR/usr/bin/synth3x" "$INITRAMFS_DIR"
 copy_deps "/bin/bash" "$INITRAMFS_DIR"
 copy_deps "$BUSYBOX_BIN" "$INITRAMFS_DIR"
 [ -n "$W3M_BIN" ] && [ -f "$W3M_BIN" ] && copy_deps "$W3M_BIN" "$INITRAMFS_DIR"

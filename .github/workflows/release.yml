@@ -46,47 +46,7 @@ jobs:
           path: iso/synth3x-anon.iso
 
       - name: Build release body
-        run: |
-          F=/tmp/release_body.md
-          echo "## How to use" > $F
-          echo "" >> $F
-          echo "### Write to USB flash drive" >> $F
-          echo "Find your USB device (usually /dev/sdX or /dev/nvme0n1):" >> $F
-          echo '```' >> $F
-          echo "  lsblk" >> $F
-          echo '```' >> $F
-          echo "Write the ISO (replace /dev/sdX with your device):" >> $F
-          echo '```' >> $F
-          echo "  sudo dd if=synth3x-anon.iso of=/dev/sdX bs=4M status=progress" >> $F
-          echo "  sudo sync" >> $F
-          echo '```' >> $F
-          echo "> **WARNING:** This will erase ALL data on /dev/sdX!" >> $F
-          echo "" >> $F
-          echo "### Boot in QEMU" >> $F
-          echo '```' >> $F
-          echo "  qemu-system-x86_64 -cdrom synth3x-anon.iso -m 1024 -accel kvm -vga std -device usb-tablet -display gtk" >> $F
-          echo '```' >> $F
-          echo "" >> $F
-          echo "### Boot from USB" >> $F
-          echo "1. Restart your computer" >> $F
-          echo "2. Press F12/F2/Del/Esc during boot (varies by manufacturer)" >> $F
-          echo "3. Select your USB drive from the boot menu" >> $F
-          echo "4. Synth3x-Anon loads into AmnesiaDE desktop" >> $F
-          echo "" >> $F
-          echo "### Default credentials (live session)" >> $F
-          echo "- User: root (no password)" >> $F
-          echo "- Desktop: AmnesiaDE v${{ steps.version.outputs.version }}" >> $F
-          echo "" >> $F
-          echo "### Features" >> $F
-          echo "- AmnesiaDE graphical framebuffer desktop" >> $F
-          echo "- Web browser (w3m -- type 'browser' in terminal, switch with Alt+F1/F7)" >> $F
-          echo "- syn package manager (inst/binary/list/search/remove/update)" >> $F
-          echo "- Hardware detection (Lenovo, Acer, Dell, HP + generic)" >> $F
-          echo "- Internet setup guide (Ethernet, USB tethering, static IP)" >> $F
-          echo "- Hard disk installer (synth3x-installer)" >> $F
-          echo "- Tor launcher (tor-start -- saves ~30MB RAM when idle)" >> $F
-          echo "- Driver checks (check-drivers-all)" >> $F
-          echo "- Built-in firewall (nftables)" >> $F
+        run: cp docs/release_notes.md /tmp/release_body.md
 
       - name: Create or Update Release
         if: steps.verify_iso.outputs.exists == 'true'
