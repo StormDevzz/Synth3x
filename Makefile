@@ -25,7 +25,7 @@ RUST_INSTALLER = $(BUILD)/synth3x-installer
 # ASM fast scanner (no libc, static)
 INSTALLER_FASTSCAN = $(BUILD)/synth3x-fastscan
 
-.PHONY: all clean iso run rust
+.PHONY: all clean iso run rust amnesia-ide
 
 all: $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_BINS) $(INSTALLER_DOWNLOADER) $(INSTALLER_WIFI) rust $(INSTALLER_FASTSCAN) boot/grub.cfg
 
@@ -120,6 +120,16 @@ $(RUST_INSTALLER): $(wildcard $(RUST_DIR)/synth3x-installer/src/*.rs) $(wildcard
 	@echo "  ── Rust installer: $@"
 
 rust: $(RUST_INSTALLER)
+
+# ─── AmnesiaIDE (lightweight terminal IDE) ───
+AMNESIA_DIR = AmnesiaIDE
+AMNESIA_BIN = $(BUILD)/amnesia-ide
+
+amnesia-ide:
+	@echo "  ── Building AmnesiaIDE..."
+	$(CARGO) build --release --manifest-path $(AMNESIA_DIR)/Cargo.toml 2>&1
+	@cp $(AMNESIA_DIR)/target/release/amnesia-ide $(AMNESIA_BIN) 2>/dev/null || true
+	@echo "  ── AmnesiaIDE: $(AMNESIA_BIN)"
 
 # ─── Initramfs ───
 INITRAMFS = $(BUILD)/initrd.img

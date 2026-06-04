@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=AmnesiaIDE
+Comment=Lightweight IDE for C, C++, C#, Rust, and Assembly
+Exec=amnesia-ide %F
+Icon=amnesia-ide
+Terminal=true
+Categories=Development;IDE;TextEditor;
+Keywords=editor;coder;programming;
+StartupNotify=false

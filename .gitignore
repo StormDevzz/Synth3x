@@ -6,5 +6,6 @@ disk_img/
 *.swp
 tags
 src/lib/target/
+AmnesiaIDE/target/
 iso/
 build/

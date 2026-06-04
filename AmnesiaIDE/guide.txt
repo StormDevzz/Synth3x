@@ -1,35 +1,60 @@
-========================================================================
-                 AmnesiaIDE — PERSISTENT STORAGE HANDBOOK
-========================================================================
+╔══════════════════════════════════════════════════════╗
+║              AmnesiaIDE  v0.1.0 — HANDBOOK           ║
+║       C · C++ · C# · Rust · Assembly · Terminal      ║
+╚══════════════════════════════════════════════════════╝
 
-Amnesia OS runs entirely in RAM (Amnesic Mode). All system files, configurations,
-and local modifications in RAM are lost forever upon reboot or shutdown.
+AmnesiaIDE is a lightweight terminal IDE for Synth3x-Anon OS.
+It is written in Rust with a C core, uses minimal resources,
+and stays running entirely inside your terminal.
 
-To allow you to develop programs and keep your files across reboots, Amnesia OS 
-supports Physical Disk Persistence.
+──────────────────────────────────────────────────────
+KEYS
+──────────────────────────────────────────────────────
+  ^O       Open file
+  ^S       Save file
+  ^R       Build & run (compiles via system toolchain)
+  ^Q       Quit
+  ^G       Go to line
+  ^K       Kill (delete) current line
+  ^U       Clear current line
+  F1-F3    Terminal panel (open)
+  F4       Toggle terminal panel
+  Arrows   Move cursor
+  Home     Line start
+  End      Line end
+  Tab      4-space indent
 
-------------------------------------------------------------------------
-1. HOW PERSISTENCE WORKS
-------------------------------------------------------------------------
-When you click [ SAVE & BUILD ] inside the IDE:
-  - The OS mounts the second partition of your virtual disk (/dev/vda2)
-    to the permanent mount point: /persist
-  - Your projects are copied into /persist/AmnesiaIDE/
-  - The IDE compiles your main.c using the physical toolchain.
-  - The binary is compiled to /persist/AmnesiaIDE/main.
-  - Files are safely synced to the hardware disk, ensuring that they 
-    survive amnesic memory purges!
+──────────────────────────────────────────────────────
+LANGUAGES
+──────────────────────────────────────────────────────
+  .c, .h        → C   (gcc)
+  .cpp/.cc/.cxx  → C++ (g++)
+  .cs            → C#  (mcs)
+  .rs            → Rust (rustc)
+  .asm/.s/.S     → ASM (nasm + ld)
 
-------------------------------------------------------------------------
-2. COMPILED BINARY EXECUTION
-------------------------------------------------------------------------
-To run your compiled persistent C program, open the Terminal [>_] and run:
-  $ /persist/AmnesiaIDE/main
+Syntax highlighting with keywords, numbers, strings,
+comments, and bracket matching for all five languages.
 
-------------------------------------------------------------------------
-3. MANUAL DISK MOUNTING
-------------------------------------------------------------------------
-If you want to manually interact with your persistent files in the shell:
-  $ mount /dev/vda2 /persist
-  $ cd /persist/AmnesiaIDE/
-  $ ls -la
+──────────────────────────────────────────────────────
+TERMINAL PANEL
+──────────────────────────────────────────────────────
+Press F4 to open a built-in terminal below the editor.
+Type commands directly — no need to switch windows.
+Use F4 again to close it.
+
+──────────────────────────────────────────────────────
+BUILD & RUN
+──────────────────────────────────────────────────────
+Press ^R to compile the current file.
+Output appears in the terminal panel.
+On success, run the binary with: /tmp/amnesia_out
+
+──────────────────────────────────────────────────────
+PERSISTENCE (Synth3x-Anon)
+──────────────────────────────────────────────────────
+In Amnesic mode, save your files to /persist/AmnesiaIDE/
+to keep them across reboots:
+  mkdir -p /persist/AmnesiaIDE
+  cd /persist/AmnesiaIDE
+  amnesia-ide myproject.rs
