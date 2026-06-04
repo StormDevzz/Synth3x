@@ -1,60 +1,42 @@
 ╔══════════════════════════════════════════════════════╗
-║              AmnesiaIDE  v0.1.0 — HANDBOOK           ║
-║       C · C++ · C# · Rust · Assembly · Terminal      ║
+║              AmnesiaIDE  v0.2.0 — HANDBOOK           ║
+║       C · C++ · C# · Rust · Assembly · GUI           ║
 ╚══════════════════════════════════════════════════════╝
 
-AmnesiaIDE is a lightweight terminal IDE for Synth3x-Anon OS.
-It is written in Rust with a C core, uses minimal resources,
-and stays running entirely inside your terminal.
+AmnesiaIDE is a lightweight GUI IDE for Synth3x-Anon OS.
+It is written in pure Rust (eframe/egui), runs as its own
+native window, and supports syntax highlighting for five
+languages plus a built-in compile & run panel.
 
 ──────────────────────────────────────────────────────
 KEYS
 ──────────────────────────────────────────────────────
-  ^O       Open file
-  ^S       Save file
-  ^R       Build & run (compiles via system toolchain)
-  ^Q       Quit
-  ^G       Go to line
-  ^K       Kill (delete) current line
-  ^U       Clear current line
-  F1-F3    Terminal panel (open)
-  F4       Toggle terminal panel
-  Arrows   Move cursor
-  Home     Line start
-  End      Line end
-  Tab      4-space indent
+  Ctrl+O     Open file
+  Ctrl+S     Save file
+  F5         Compile & Run
+  Quit via File > Quit or window close
 
 ──────────────────────────────────────────────────────
 LANGUAGES
 ──────────────────────────────────────────────────────
-  .c, .h        → C   (gcc)
+  .c, .h         → C   (gcc)
   .cpp/.cc/.cxx  → C++ (g++)
   .cs            → C#  (mcs)
   .rs            → Rust (rustc)
   .asm/.s/.S     → ASM (nasm + ld)
 
 Syntax highlighting with keywords, numbers, strings,
-comments, and bracket matching for all five languages.
+comments, and type highlighting for all five languages.
 
 ──────────────────────────────────────────────────────
-TERMINAL PANEL
+OUTPUT PANEL
 ──────────────────────────────────────────────────────
-Press F4 to open a built-in terminal below the editor.
-Type commands directly — no need to switch windows.
-Use F4 again to close it.
+Click "Terminal" in the menu bar or press F5 to show
+the build output panel. Compilation results, errors,
+and warnings appear here.
 
 ──────────────────────────────────────────────────────
 BUILD & RUN
 ──────────────────────────────────────────────────────
-Press ^R to compile the current file.
-Output appears in the terminal panel.
-On success, run the binary with: /tmp/amnesia_out
-
-──────────────────────────────────────────────────────
-PERSISTENCE (Synth3x-Anon)
-──────────────────────────────────────────────────────
-In Amnesic mode, save your files to /persist/AmnesiaIDE/
-to keep them across reboots:
-  mkdir -p /persist/AmnesiaIDE
-  cd /persist/AmnesiaIDE
-  amnesia-ide myproject.rs
+File > Compile & Run or press F5 to compile.
+On success, run with: /tmp/amnesia_out
