@@ -209,6 +209,12 @@ void drm_swap(compositor_t *c) {
     drm_state_t *d = &c->drm;
     if (d->fd < 0) return;
     
+    if (d->bufs[0].map == NULL) {
+        /* fbdev fallback mode: copy backbuffer directly to framebuffer map */
+        memcpy(d->map, c->backbuf, c->backbuf_size);
+        return;
+    }
+    
     /* Copy backbuffer to current front buffer */
     memcpy(d->map, c->backbuf, c->backbuf_size > d->bufs[d->front_buf].size ?
            d->bufs[d->front_buf].size : c->backbuf_size);

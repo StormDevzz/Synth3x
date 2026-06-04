@@ -4,6 +4,8 @@
  */
 
 #include "compositor.h"
+#include <linux/fb.h>
+#include <sys/ioctl.h>
 
 int compositor_init(compositor_t *c) {
     memset(c, 0, sizeof(*c));
@@ -16,11 +18,18 @@ int compositor_init(compositor_t *c) {
             fprintf(stderr, "Compositor: No display device found\n");
             return -1;
         }
-        c->fb_w = 1024;
-        c->fb_h = 768;
+        struct fb_var_screeninfo vi;
+        if (ioctl(fb_fd, FBIOGET_VSCREENINFO, &vi) == 0 && vi.xres > 0 && vi.yres > 0) {
+            c->fb_w = vi.xres;
+            c->fb_h = vi.yres;
+        } else {
+            c->fb_w = 1024;
+            c->fb_h = 768;
+        }
         c->drm.fd = fb_fd;
         c->drm.stride = c->fb_w * 4;
         c->drm.size = c->fb_h * c->fb_w * 4;
+        c->backbuf_size = c->drm.size;
         c->backbuf = malloc(c->drm.size);
         c->drm.map = mmap(NULL, c->drm.size, PROT_READ|PROT_WRITE,
                           MAP_SHARED, fb_fd, 0);

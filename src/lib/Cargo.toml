@@ -1,0 +1,6 @@
+[workspace]
+resolver = "2"
+members = ["synth3x-safe", "synth3x-installer"]
+
+# Synth3x OS v0.8.1 Beta — Rust workspace
+# Safe process foundation + terminal installer

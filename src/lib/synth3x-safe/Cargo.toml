@@ -1,0 +1,7 @@
+[package]
+name = "synth3x-safe"
+version = "0.8.1"
+edition = "2021"
+description = "Synth3x OS — Safe Process Foundation (Rust)"
+
+[dependencies]

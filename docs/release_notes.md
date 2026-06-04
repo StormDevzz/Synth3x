@@ -1,5 +1,5 @@
-# Synth3x-Anon v0.8 — Gentoo Hardened OS
-# Browser | Touchpad | syn pkg Manager | HW Detect
+# Synth3x-Anon v0.8.1 Beta — Gentoo Hardened OS
+# Safe Process Foundation (Rust) | Browser | Touchpad | syn pkg Manager | HW Detect
 
 ================================================================
                     INTERNET SETUP GUIDE
@@ -33,8 +33,8 @@ Method B — wpa_supplicant:
   Connect phone via USB, enable USB tethering.
   # dhcpcd usb0
 
-================================================================
-                    DESKTOP ENVIRONMENT (AmnesiaDE v0.8)
+==============================================================
+                    DESKTOP ENVIRONMENT (AmnesiaDE v0.8.1)
 ================================================================
 
 Pre-installed apps on desktop:
@@ -68,28 +68,24 @@ Touchpad drivers auto-loaded. Two-finger scroll supported.
 Status shown in panel: "TP: ON"
 
 ================================================================
-                    syn PACKAGE MANAGER (Gentoo-style)
+                    Portage PACKAGE MANAGER (emerge)
 ================================================================
 
 Usage:
-  sudo syn inst <package>     Install package (binary)
-  sudo syn binary <package>   Install binary directly
-  sudo syn remove <package>   Remove package
-  syn list                    List installed packages
-  syn search <query>          Search packages
-  syn update                  Update package database
-  syn info <package>          Package details
+  emerge --ask <package>      Install package (compiles or downloads binary)
+  emerge --unmerge <package>  Remove package
+  emerge --search <query>     Search packages
+  emerge-webrsync             Sync package database (offline)
+  emaint --auto sync          Sync package database (online)
 
 Examples:
-  sudo syn inst telegram-desktop
-  sudo syn binary firefox
-  sudo syn inst vscodium
-  sudo syn list
+  emerge www-client/firefox-bin
+  emerge app-editors/vscodium-bin
+  emerge net-im/telegram-desktop-bin
 
 Available packages:
-  telegram-desktop, firefox, vscodium, vim, htop,
-  neofetch, git, wget, nano, gcc, python, nodejs,
-  rustc, go, nginx, docker, ibus
+  Gentoo provides thousands of packages in the official tree, including:
+  firefox, vscodium, telegram-desktop, vim, htop, git, wget, gcc, python, nodejs, etc.
 
 ================================================================
                     HARD DISK INSTALLATION

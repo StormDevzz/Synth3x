@@ -1,5 +1,5 @@
 #!/bin/bash
-# Synth3x-Anon v0.9 — Cyberpunk Safe Installer
+# Synth3x-Anon v0.8.1 Beta — Cyberpunk Safe Installer (legacy, use Rust version)
 # Features: boot disk detection, safety checks, dry-run, automatic backup warning
 
 # ─── Dark Cyberpunk Palette ───
@@ -52,8 +52,8 @@ show_banner() {
     echo -e "${NEON_CYAN}     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓${HX}"
     echo ""
     echo -e "${DIM}     ════════════════════════════════════════════════════════════${HX}"
-    echo -e "     ${DIM}┃${HX}  ${NEON_CYAN}${BOLD}SYNTH3X-ANON v0.9   SAFE INSTALLER${HX}              ${DIM}┃${HX}"
-    echo -e "     ${DIM}┃${HX}  ${DIM}Wayland Compositor  •  DRM/KMS  •  syn pkg${HX}        ${DIM}┃${HX}"
+    echo -e "     ${DIM}┃${HX}  ${NEON_CYAN}${BOLD}SYNTH3X-ANON v0.8.1   SAFE INSTALLER${HX}         ${DIM}┃${HX}"
+    echo -e "     ${DIM}┃${HX}  ${DIM}Wayland Compositor  •  DRM/KMS  •  Portage/emerge${HX}  ${DIM}┃${HX}"
     echo -e "     ${DIM}┃${HX}  ${NEON_PURPLE}system initialized. awaiting input.${HX}               ${DIM}┃${HX}"
     echo -e "     ${DIM}════════════════════════════════════════════════════════════${HX}"
     echo ""
@@ -429,7 +429,6 @@ EOF
         # Copy custom files from host
         echo -e "     ${NEON_GREEN}» Copying custom files and compositor binaries...${HX}"
         cp /usr/bin/synth3x /mnt/gentoo/usr/bin/ 2>/dev/null
-        cp /usr/bin/syn /mnt/gentoo/usr/bin/ 2>/dev/null
         cp /usr/bin/ram_analyzer /mnt/gentoo/usr/bin/ 2>/dev/null
         cp /usr/bin/disk_analyzer /mnt/gentoo/usr/bin/ 2>/dev/null
         cp /usr/bin/device_names /mnt/gentoo/usr/bin/ 2>/dev/null
@@ -584,9 +583,9 @@ echo -e "     ${DIM}│${HX}  ${NEON_CYAN}User:${HX}     ${FG}${USER_NAME}${HX} 
 echo -e "     ${DIM}│${HX}  ${NEON_CYAN}Drive:${HX}    ${FG}${TARGET_DRIVE}${HX}                      ${DIM}│${HX}"
 echo -e "     ${DIM}│${HX}  ${NEON_CYAN}DE:${HX}       ${FG}${DE_NAME}${HX}                  ${DIM}│${HX}"
 echo -e "     ${DIM}│${HX}  ${NEON_CYAN}Display:${HX}  ${FG}Wayland (DRM/KMS)${HX}               ${DIM}│${HX}"
-echo -e "     ${DIM}│${HX}  ${NEON_CYAN}Pkg:${HX}      ${FG}syn install <package>${HX}            ${DIM}│${HX}"
+echo -e "     ${DIM}│${HX}  ${NEON_CYAN}Pkg:${HX}      ${FG}emerge <package>${HX}                 ${DIM}│${HX}"
 echo -e "     ${DIM}└─────────────────────────────────────────────────────┘${HX}"
 echo ""
 echo -e "     ${NEON_PINK}${BOLD}》 REBOOT AND BOOT FROM DRIVE 《${HX}"
-echo -e "     ${DIM}  Synth3x-Anon v0.9  •  wayland  •  drm  •  syn${HX}"
+echo -e "     ${DIM}  Synth3x-Anon v0.9  •  wayland  •  drm  •  emerge${HX}"
 echo ""

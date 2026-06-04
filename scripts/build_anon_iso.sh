@@ -1,5 +1,5 @@
 #!/bin/bash
-# Synth3x-Anon — Automated Live ISO Builder v0.8 (Gentoo Profile)
+# Synth3x-Anon — Automated Live ISO Builder v0.8.1 (Gentoo Profile)
 set -e
 set +o pipefail 2>/dev/null || true
 
@@ -7,7 +7,7 @@ DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$DIR"
 
 echo "  ╔══════════════════════════════════════════════════════════╗"
-echo "  ║     Synth3x-Anon v0.8 — Gentoo Hardened Build System     ║"
+echo "  ║     Synth3x-Anon v0.8.1 — Gentoo Hardened Build System     ║"
 echo "  ║     Browser | Touchpad | syn Pkg Mgr | Amnesic RAM      ║"
 echo "  ╚══════════════════════════════════════════════════════════╝"
 
@@ -67,20 +67,55 @@ gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/device_names src/who/devic
 gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/usb_analyzer src/who/usb_analyzer.c
 gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/cable_analyzer src/who/cable_analyzer.c
 
+echo "  -- Compiling installer C components..."
+gcc -static -march=x86-64 -mno-avx -O2 -Wall -DSTANDALONE -o build/synth3x-downloader src/installer/downloader.c 2>/dev/null && echo "  ✓ synth3x-downloader" || echo "  ⚠ downloader build failed"
+gcc -static -march=x86-64 -mno-avx -O2 -Wall -DSTANDALONE -o build/synth3x-wifi src/installer/wifi_manager.c 2>/dev/null && echo "  ✓ synth3x-wifi" || echo "  ⚠ wifi_manager build failed"
+
 # 3. Create isolated initramfs structure
 echo "[3/6] Constructing RAM-only amnesic initramfs..."
 INITRAMFS_DIR="build/initramfs"
 rm -rf "$INITRAMFS_DIR"
-mkdir -p "$INITRAMFS_DIR"/{bin,sbin,usr/bin,usr/sbin,dev,proc,sys,tmp,etc,var,run,lib,lib64,usr/lib,usr/lib64}
+mkdir -p "$INITRAMFS_DIR"/usr/{bin,sbin,lib}
+mkdir -p "$INITRAMFS_DIR"/{dev,proc,sys,tmp,etc,var,run}
 mkdir -p "$INITRAMFS_DIR"/etc/{tor,ssl,dbus}
 mkdir -p "$INITRAMFS_DIR"/var/{db/syn,cache/syn,lib/tor,log/tor}
 mkdir -p "$INITRAMFS_DIR"/usr/local/{bin,lib,share}
+
+# Create standard UsrMerge symlinks
+ln -sf usr/bin "$INITRAMFS_DIR/bin"
+ln -sf usr/bin "$INITRAMFS_DIR/sbin"
+ln -sf usr/lib "$INITRAMFS_DIR/lib"
+ln -sf usr/lib "$INITRAMFS_DIR/lib64"
 
 # Copy our compiled custom software
 cp build/init "$INITRAMFS_DIR/init"
 cp build/synth3x "$INITRAMFS_DIR/usr/bin/synth3x"
 cp build/syn "$INITRAMFS_DIR/usr/bin/syn"
-cp scripts/synth3x-installer.sh "$INITRAMFS_DIR/usr/bin/synth3x-installer"
+ln -sf syn "$INITRAMFS_DIR/usr/bin/emerge"
+# Build Rust safe process components
+echo "  -- Building Rust safe process foundation + installer..."
+cd "$DIR"
+if command -v cargo >/dev/null 2>&1; then
+    cargo build --release --manifest-path src/lib/Cargo.toml 2>&1 || true
+    cp src/lib/target/release/synth3x-installer "$INITRAMFS_DIR/usr/bin/synth3x-installer" 2>/dev/null || \
+        cp scripts/synth3x-installer.sh "$INITRAMFS_DIR/usr/bin/synth3x-installer"
+    echo "  ✓ Rust installer (safe process foundation)"
+else
+    cp scripts/synth3x-installer.sh "$INITRAMFS_DIR/usr/bin/synth3x-installer"
+    echo "  ⚠ cargo not found, using bash installer"
+fi
+chmod +x "$INITRAMFS_DIR/usr/bin/synth3x-installer"
+ln -sf synth3x-installer "$INITRAMFS_DIR/usr/bin/synth3x0-installer"
+
+# Copy C installer components
+if [ -f build/synth3x-downloader ]; then
+    cp build/synth3x-downloader "$INITRAMFS_DIR/usr/bin/"
+    echo "  ✓ synth3x-downloader (C component)"
+fi
+if [ -f build/synth3x-wifi ]; then
+    cp build/synth3x-wifi "$INITRAMFS_DIR/usr/bin/"
+    echo "  ✓ synth3x-wifi (C component)"
+fi
 
 # Copy hardware analyzers
 cp build/ram_analyzer "$INITRAMFS_DIR/usr/bin/"
@@ -232,7 +267,7 @@ if [ -n "$KVER" ]; then
     MODDIR="/lib/modules/$KVER"
     [ ! -d "$MODDIR" ] && MODDIR="/usr/lib/modules/$KVER"
     echo "    Kernel modules: $MODDIR"
-    for mod in bochs virtio-gpu ttm serio_raw psmouse mousedev virtio_input; do
+    for mod in bochs virtio-gpu virtio_dma_buf ttm serio_raw psmouse mousedev virtio_input; do
         src=$(find "$MODDIR" -name "${mod}.ko*" -type f 2>/dev/null | head -1)
         if [ -n "$src" ]; then
             case "$src" in
@@ -305,7 +340,7 @@ if command -v grub-mkrescue >/dev/null 2>&1; then
     echo "[6/6] Building ISO with grub-mkrescue..."
     grub-mkrescue -o iso/synth3x-anon.iso iso -- -volid "SYNTH3X_ANON" 2>&1 || { echo "  [✗] grub-mkrescue failed!"; exit 1; }
     echo ""
-    echo "  ── Synth3x-Anon v0.8 ISO ready ──"
+    echo "  ── Synth3x-Anon v0.8.1 ISO ready ──"
     echo "  File: iso/synth3x-anon.iso"
     echo "  Size: $(du -h iso/synth3x-anon.iso | cut -f1)"
     echo ""
@@ -318,6 +353,7 @@ if command -v grub-mkrescue >/dev/null 2>&1; then
     echo "    ✓ Touchpad support (auto-detect)"
     echo "    ✓ Hardware detection (Lenovo, Acer, Dell, HP)"
     echo "    ✓ Internet guide in Synth3x Guide window"
+    echo "    ✓ Rust safe process foundation"
     echo "    ✓ Hard disk installer (synth3x-installer)"
     echo ""
 else

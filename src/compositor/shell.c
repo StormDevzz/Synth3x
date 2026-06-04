@@ -108,18 +108,18 @@ static const WinTextLine guide_p5_lines[] = {
     {12, 12, "======================================================"},
     {12, 26, "   SYNTH3X OS: GENTOO INTERNET SETUP GUIDE           "},
     {12, 40, "======================================================"},
-    {12, 56, "[6/8] INSTALLING PROGRAMS (syn pkg manager)"},
-    {12, 76, "The 'syn' command manages packages:"},
-    {24, 100, "$ syn inst w3m       - Install w3m browser"},
-    {24, 116, "$ syn inst firefox   - Download Firefox binary"},
-    {24, 132, "$ syn list           - List all packages"},
-    {24, 148, "$ syn search browser - Search packages"},
-    {24, 164, "$ syn update         - Update package list"},
-    {24, 180, "$ syn remove w3m     - Remove package"},
-    {12, 204, "Available packages in live environment:"},
-    {24, 224, "w3m firefox vscodium telegram-desktop"},
-    {24, 240, "vim htop gcc python nodejs git curl"},
-    {12, 260, "From DE terminal: type command, press Enter"},
+    {12, 56, "[6/8] INSTALLING PROGRAMS (emerge / portage)"},
+    {12, 76, "Gentoo uses Portage ('emerge') to manage packages:"},
+    {24, 100, "$ emerge --ask <pkg>  - Install package"},
+    {24, 116, "$ emerge --unmerge <p> - Remove package"},
+    {24, 132, "$ emerge --search <q> - Search packages"},
+    {24, 148, "$ emerge-webrsync     - Sync database (offline)"},
+    {24, 164, "$ emaint --auto sync  - Sync Portage (online)"},
+    {12, 188, "Available packages in Gentoo repo:"},
+    {24, 208, "www-client/firefox-bin, app-editors/vscodium-bin"},
+    {24, 224, "net-im/telegram-desktop-bin, app-editors/vim"},
+    {24, 240, "sys-process/htop, dev-vcs/git, net-misc/curl"},
+    {12, 260, "From terminal: type emerge command, press Enter"},
 };
 
 static const WinTextLine guide_p6_lines[] = {
@@ -530,8 +530,8 @@ void extract_selected_text(compositor_t *c) {
     } else if (strcmp(w->title, "Amnesia Handbook") == 0) {
         WinTextLine hb_lines[] = {
             {12, 12, "======================================================"},
-            {12, 26, "         AMNESIADE: WAYLAND COMPOSITOR v0.9           "},
-            {12, 84, "AmnesiaDE v0.9 — Wayland Compositor"},
+            {12, 26, "         AMNESIADE: WAYLAND COMPOSITOR v0.8.1          "},
+            {12, 84, "AmnesiaDE v0.8.1 — Wayland Compositor"},
             {12, 100, "Direct rendering via DRM/KMS (Linux Kernel Mode Setting)"},
             {12, 116, "Native Wayland protocol — supports external clients"},
             {12, 132, "All data in volatile RAM — destroyed on power-down."},
@@ -1318,10 +1318,10 @@ void shell_handle_key(compositor_t *c, int code) {
     if (term_idx >= 0 && c->aw == term_idx) {
         if (code == 28) {  /* Enter */
             if (strlen(c->term_input) > 0) {
-                /* Rewrite pkg install to syn inst */
+                /* Rewrite pkg install to emerge */
                 if (strncmp(c->term_input, "pkg install ", 12) == 0) {
                     char real_cmd[256];
-                    snprintf(real_cmd, sizeof(real_cmd), "syn inst %s", c->term_input + 12);
+                    snprintf(real_cmd, sizeof(real_cmd), "emerge %s", c->term_input + 12);
                     strncpy(c->term_input, real_cmd, sizeof(c->term_input) - 1);
                 }
 
@@ -1347,7 +1347,7 @@ void shell_handle_key(compositor_t *c, int code) {
                         shell_term_log(c, "AmnesiaDE: launching VSCodium...");
                         shell_notif(c, "VSCodium", "Editor launched.");
                     } else {
-                        shell_term_log(c, "vscodium: command not found (try: 'syn inst vscodium')");
+                        shell_term_log(c, "vscodium: command not found (try: 'emerge vscodium')");
                         shell_beep(c, 300, 100);
                     }
                 } else {

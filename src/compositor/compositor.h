@@ -21,7 +21,7 @@
 #include <math.h>
 
 #ifndef SYNTH3X_VERSION
-#define SYNTH3X_VERSION "0.9"
+#define SYNTH3X_VERSION "0.8.1"
 #endif
 
 /* ─── CONFIG ─── */

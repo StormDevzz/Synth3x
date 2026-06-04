@@ -1,4 +1,4 @@
-/* Synth3x OS v0.9 — syn — Real Package Manager
+/* Synth3x OS v0.8.1 — syn — Real Package Manager
  * Downloads, verifies, and installs binary packages.
  * Works with curl/wget or busybox wget.
  * Packages are fetched from package repositories.
@@ -29,7 +29,7 @@
 
 static void banner(void) {
     printf("\n  " CYAN "  ── syn package manager ──" NC "\n");
-    printf("  " PURPLE "  Synth3x OS v0.9 — Real binary downloads" NC "\n\n");
+    printf("  " PURPLE "  Synth3x OS v0.8.1 — Real binary downloads" NC "\n\n");
 }
 
 static void ensure_db(void) {
@@ -373,37 +373,56 @@ int main(int argc, char *argv[]) {
     if (argc < 2) {
         banner();
         printf("  " YELLOW "Usage:" NC "\n");
-        printf("    " CYAN "syn inst <pkg>" NC "     Download and install\n");
-        printf("    " CYAN "syn remove <pkg>" NC "   Remove package\n");
-        printf("    " CYAN "syn list" NC "            List installed\n");
-        printf("    " CYAN "syn search <q>" NC "      Search packages\n");
-        printf("    " CYAN "syn update" NC "           Update package list\n");
-        printf("    " CYAN "syn info <pkg>" NC "      Package details\n");
+        printf("    " CYAN "emerge <pkg>" NC "        Download and install (Gentoo style)\n");
+        printf("    " CYAN "emerge --ask <pkg>" NC "  Install package\n");
+        printf("    " CYAN "emerge --unmerge <pkg>" NC " Remove package\n");
+        printf("    " CYAN "emerge --search <q>" NC " Search packages\n");
+        printf("    " CYAN "emerge --sync" NC "        Update package list\n");
         printf("\n  " PURPLE "Examples:" NC "\n");
-        printf("    " GREEN "syn inst firefox" NC "\n");
-        printf("    " GREEN "syn inst vscodium" NC "\n");
-        printf("    " GREEN "syn list" NC "\n");
+        printf("    " GREEN "emerge firefox" NC "\n");
+        printf("    " GREEN "emerge --ask vscodium" NC "\n");
         return 0;
     }
 
     const char *cmd = argv[1];
+    const char *target = (argc > 2) ? argv[2] : NULL;
+
+    /* Emerge compatibility rewriter */
+    char *bin_name = basename(argv[0]);
+    if (strcmp(bin_name, "emerge") == 0) {
+        if (strcmp(argv[1], "--sync") == 0) {
+            cmd = "update";
+        } else if (strcmp(argv[1], "--search") == 0 || strcmp(argv[1], "-s") == 0) {
+            cmd = "search";
+            if (argc > 2) target = argv[2];
+        } else if (strcmp(argv[1], "--unmerge") == 0 || strcmp(argv[1], "-C") == 0) {
+            cmd = "remove";
+            if (argc > 2) target = argv[2];
+        } else if (strcmp(argv[1], "--ask") == 0 || strcmp(argv[1], "-a") == 0) {
+            cmd = "inst";
+            if (argc > 2) target = argv[2];
+        } else {
+            cmd = "inst";
+            target = argv[1];
+        }
+    }
 
     if (strcmp(cmd, "inst") == 0 || strcmp(cmd, "install") == 0) {
-        if (argc < 3) { fprintf(stderr, "Usage: syn inst <package>\n"); return 1; }
-        return syn_install(argv[2]);
+        if (!target) { fprintf(stderr, "Usage: emerge <package>\n"); return 1; }
+        return syn_install(target);
     } else if (strcmp(cmd, "remove") == 0 || strcmp(cmd, "rm") == 0) {
-        if (argc < 3) { fprintf(stderr, "Usage: syn remove <package>\n"); return 1; }
-        return syn_remove(argv[2]);
+        if (!target) { fprintf(stderr, "Usage: emerge --unmerge <package>\n"); return 1; }
+        return syn_remove(target);
     } else if (strcmp(cmd, "list") == 0 || strcmp(cmd, "ls") == 0) {
         return syn_list();
     } else if (strcmp(cmd, "search") == 0) {
-        if (argc < 3) { fprintf(stderr, "Usage: syn search <query>\n"); return 1; }
-        return syn_search(argv[2]);
+        if (!target) { fprintf(stderr, "Usage: emerge --search <query>\n"); return 1; }
+        return syn_search(target);
     } else if (strcmp(cmd, "update") == 0) {
         return syn_update();
     } else if (strcmp(cmd, "info") == 0) {
-        if (argc < 3) { fprintf(stderr, "Usage: syn info <package>\n"); return 1; }
-        return syn_info(argv[2]);
+        if (!target) { fprintf(stderr, "Usage: syn info <package>\n"); return 1; }
+        return syn_info(target);
     } else {
         fprintf(stderr, "  " RED "Unknown command: %s" NC "\n", cmd);
         return 1;

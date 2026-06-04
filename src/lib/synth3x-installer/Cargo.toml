@@ -1,0 +1,9 @@
+[package]
+name = "synth3x-installer"
+version = "0.8.1"
+edition = "2021"
+description = "Synth3x OS v0.8.1 Beta — Terminal Installer"
+
+[dependencies]
+synth3x-safe = { path = "../synth3x-safe" }
+libc = "0.2"
