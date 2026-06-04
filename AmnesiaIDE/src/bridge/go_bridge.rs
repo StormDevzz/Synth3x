@@ -9,13 +9,11 @@ struct GhResult {
     info: Option<String>,
 }
 
-/// GoBridge loads `go/gh.so` and calls its exported C functions at runtime.
 pub struct GoBridge {
     lib: libloading::Library,
 }
 
 impl GoBridge {
-    /// Try to load the Go shared library.
     pub fn load() -> Option<Self> {
         let paths = ["go/gh.so"];
         for p in &paths {
@@ -26,6 +24,17 @@ impl GoBridge {
             }
         }
         None
+    }
+
+    unsafe fn call0(&self, name: &[u8]) -> Option<String> {
+        let f: libloading::Symbol<unsafe extern "C" fn() -> *mut c_char> =
+            self.lib.get(name).ok()?;
+        let p = f();
+        let s = CStr::from_ptr(p).to_string_lossy().to_string();
+        if let Ok(free) = self.lib.get::<unsafe extern "C" fn(*mut c_char)>(b"gh_free") {
+            free(p);
+        }
+        Some(s)
     }
 
     unsafe fn call1(&self, name: &[u8], arg: &str) -> Option<String> {
@@ -72,6 +81,51 @@ impl GoBridge {
         }
     }
 
+    // --- auth ---
+    pub fn auth_store(&self, token: &str) -> String {
+        unsafe { self.call1(b"gh_auth_store", token) }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    pub fn auth_check(&self) -> String {
+        unsafe { self.call0(b"gh_auth_check") }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    pub fn auth_clear(&self) -> String {
+        unsafe { self.call0(b"gh_auth_clear") }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    pub fn list_repos(&self) -> String {
+        unsafe { self.call0(b"gh_list_repos") }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    // --- network ---
+    pub fn net_check(&self) -> String {
+        unsafe { self.call0(b"gh_net_check") }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    pub fn dns_lookup(&self, host: &str) -> String {
+        unsafe { self.call1(b"gh_dns_lookup", host) }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    pub fn http_get(&self, url: &str) -> String {
+        unsafe { self.call1(b"gh_http_get", url) }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    // --- git ---
     pub fn clone_repo(&self, url: &str, dir: &str) -> String {
         unsafe { self.call2(b"gh_clone", url, dir) }
             .map(|j| Self::parse(&j))

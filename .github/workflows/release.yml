@@ -93,7 +93,6 @@ jobs:
           AUTHOR_AVATAR="https://github.com/${AUTHOR_USERNAME}.png?size=64"
 
           if [ "$STATUS" = "success" ]; then
-            EMOJI="✅"
             TAG="BUILD OK"
             COLOR=5763719
           else
@@ -131,11 +130,11 @@ jobs:
                 "icon_url": "${AUTHOR_AVATAR}",
                 "url": "https://github.com/${AUTHOR_USERNAME}"
               },
-              "title": "${EMOJI} ${TITLE}",
+              "title": "${TITLE}",
               "description": ${COMMIT_MSG},
               "color": ${COLOR},
               "fields": [
-                {"name": "Build", "value": "${EMOJI} ${STATUS}", "inline": true},
+                {"name": "Build", "value": "${STATUS}", "inline": true},
                 {"name": "Commit", "value": "[${GITHUB_SHA::7}](${COMMIT_URL})", "inline": true},
                 {"name": "Key files", "value": "${FILE_LIST}", "inline": false}
               ],

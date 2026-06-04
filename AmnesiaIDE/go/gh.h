@@ -82,6 +82,13 @@ typedef struct { void *data; GoInt len; GoInt cap; } GoSlice;
 extern "C" {
 #endif
 
+extern char* gh_auth_store(char* token);
+extern char* gh_auth_check(void);
+extern char* gh_auth_clear(void);
+extern char* gh_list_repos(void);
+extern char* gh_net_check(void);
+extern char* gh_dns_lookup(char* host);
+extern char* gh_http_get(char* url);
 extern char* gh_clone(char* url, char* dir);
 extern char* gh_status(char* dir);
 extern char* gh_commit_push(char* dir, char* msg);

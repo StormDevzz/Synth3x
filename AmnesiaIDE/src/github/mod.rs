@@ -8,7 +8,10 @@ pub struct GitHubState {
     pub visible: bool,
     pub clone_url: String,
     pub commit_msg: String,
+    pub token: String,
     pub output: String,
+    pub dns_host: String,
+    pub http_url: String,
     pub bridge: Option<GoBridge>,
 }
 
@@ -18,7 +21,10 @@ impl Default for GitHubState {
             visible: false,
             clone_url: String::new(),
             commit_msg: String::new(),
+            token: String::new(),
             output: String::new(),
+            dns_host: String::from("github.com"),
+            http_url: String::new(),
             bridge: GoBridge::load(),
         }
     }
@@ -27,14 +33,80 @@ impl Default for GitHubState {
 pub fn show(app: &mut AmnesiaApp, ctx: &egui::Context) {
     if !app.github.visible { return; }
     let ws_path = app.ws.as_ref().map(|w| w.path.clone()).unwrap_or_default();
-    let use_bridge = app.github.bridge.is_some();
 
     egui::Window::new("GitHub")
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .resizable(false)
         .show(ctx, |ui| {
-            ui.label(egui::RichText::new(if use_bridge { "Go Bridge: active" } else { "Go Bridge: not loaded, using CLI fallback" }).size(11.0).color(Color32::from_gray(160)));
+            // bridge indicator
+            let bridge_ok = app.github.bridge.is_some();
+            ui.label(egui::RichText::new(
+                if bridge_ok { "Go Bridge: active" } else { "Go Bridge: not loaded" }
+            ).size(11.0).color(if bridge_ok { Color32::from_rgb(86, 156, 214) } else { Color32::from_gray(150) }));
+
             ui.separator();
+
+            // --- Auth ---
+            ui.heading("Authorization");
+            ui.horizontal(|ui| {
+                ui.label("Token:");
+                ui.add(egui::TextEdit::singleline(&mut app.github.token).password(true).hint_text("ghp_..."));
+                if ui.button("Save").clicked() && !app.github.token.is_empty() {
+                    let token = app.github.token.clone();
+                    app.github.output = if let Some(ref b) = app.github.bridge {
+                        b.auth_store(&token)
+                    } else { "bridge not loaded".into() };
+                }
+                if ui.button("Check").clicked() {
+                    app.github.output = if let Some(ref b) = app.github.bridge {
+                        b.auth_check()
+                    } else { "bridge not loaded".into() };
+                }
+                if ui.button("Clear").clicked() {
+                    app.github.output = if let Some(ref b) = app.github.bridge {
+                        b.auth_clear()
+                    } else { "bridge not loaded".into() };
+                }
+            });
+            if ui.button("List Repos").clicked() {
+                app.github.output = if let Some(ref b) = app.github.bridge {
+                    b.list_repos()
+                } else { "bridge not loaded".into() };
+            }
+
+            ui.separator();
+
+            // --- Network ---
+            ui.heading("Network");
+            if ui.button("Check Internet").clicked() {
+                app.github.output = if let Some(ref b) = app.github.bridge {
+                    b.net_check()
+                } else { "bridge not loaded".into() };
+            }
+            ui.horizontal(|ui| {
+                ui.label("DNS:");
+                ui.text_edit_singleline(&mut app.github.dns_host);
+                if ui.button("Lookup").clicked() {
+                    let host = app.github.dns_host.clone();
+                    app.github.output = if let Some(ref b) = app.github.bridge {
+                        b.dns_lookup(&host)
+                    } else { "bridge not loaded".into() };
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("HTTP GET:");
+                ui.text_edit_singleline(&mut app.github.http_url);
+                if ui.button("Fetch").clicked() {
+                    let url = app.github.http_url.clone();
+                    app.github.output = if let Some(ref b) = app.github.bridge {
+                        b.http_get(&url)
+                    } else { "bridge not loaded".into() };
+                }
+            });
+
+            ui.separator();
+
+            // --- Clone ---
             ui.heading("Clone Repository");
             ui.horizontal(|ui| {
                 ui.label("URL:");
@@ -49,8 +121,9 @@ pub fn show(app: &mut AmnesiaApp, ctx: &egui::Context) {
                     };
                 }
             });
-            ui.separator();
+
             if !ws_path.is_empty() {
+                ui.separator();
                 ui.heading("Current Workspace");
                 if ui.button("Status").clicked() {
                     app.github.output = if let Some(ref bridge) = app.github.bridge {
@@ -81,6 +154,7 @@ pub fn show(app: &mut AmnesiaApp, ctx: &egui::Context) {
                     };
                 }
             }
+
             ui.separator();
             if !app.github.output.is_empty() {
                 egui::ScrollArea::vertical().max_height(120.0).show(ui, |ui| {
