@@ -246,12 +246,35 @@ void hw_auto_configure(void) {
         system("modprobe psmouse 2>/dev/null || true");
     }
 
-    /* Load WiFi modules for common adapters */
-    system("modprobe iwlwifi 2>/dev/null || true");         /* Intel */
-    system("modprobe ath9k 2>/dev/null || true");           /* Atheros */
-    system("modprobe ath10k 2>/dev/null || true");          /* Atheros 10k */
-    system("modprobe rtl8xxxu 2>/dev/null || true");        /* Realtek */
-    system("modprobe rtw88_8822ce 2>/dev/null || true");    /* Realtek 8822CE */
+    /* Load WiFi modules using insmod in dependency order */
+    system("for d in /lib/modules/*/; do \
+             [ -f \"${d}cfg80211.ko\" ] || continue; \
+             insmod \"${d}cfg80211.ko\" 2>/dev/null; \
+             insmod \"${d}mac80211.ko\" 2>/dev/null; \
+             insmod \"${d}iwlwifi.ko\" 2>/dev/null; \
+             insmod \"${d}iwlmvm.ko\" 2>/dev/null; \
+             insmod \"${d}iwlmld.ko\" 2>/dev/null; \
+             insmod \"${d}iwldvm.ko\" 2>/dev/null; \
+             insmod \"${d}ath.ko\" 2>/dev/null; \
+             insmod \"${d}ath9k_hw.ko\" 2>/dev/null; \
+             insmod \"${d}ath9k_common.ko\" 2>/dev/null; \
+             insmod \"${d}ath9k.ko\" 2>/dev/null; \
+             insmod \"${d}ath10k_core.ko\" 2>/dev/null; \
+             insmod \"${d}ath10k_pci.ko\" 2>/dev/null; \
+             insmod \"${d}rtl8xxxu.ko\" 2>/dev/null; \
+             insmod \"${d}rtw88_core.ko\" 2>/dev/null; \
+             insmod \"${d}rtw88_8822ce.ko\" 2>/dev/null; \
+             break; done 2>/dev/null || true");
+
+    /* Ethernet / virtual NIC drivers */
+    system("for d in /lib/modules/*/; do \
+             [ -f \"${d}failover.ko\"    ] && insmod \"${d}failover.ko\"    2>/dev/null; \
+             [ -f \"${d}net_failover.ko\" ] && insmod \"${d}net_failover.ko\" 2>/dev/null; \
+             [ -f \"${d}virtio_net.ko\"   ] && insmod \"${d}virtio_net.ko\"   2>/dev/null; \
+             [ -f \"${d}e1000.ko\"        ] && insmod \"${d}e1000.ko\"        2>/dev/null; \
+             break; done 2>/dev/null || true");
+    system("modprobe e1000e 2>/dev/null || true");
+    system("modprobe r8169 2>/dev/null || true");
 
     /* Load sound modules */
     system("modprobe snd_hda_intel 2>/dev/null || true");

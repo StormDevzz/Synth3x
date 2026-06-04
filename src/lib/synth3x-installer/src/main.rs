@@ -217,37 +217,92 @@ fn check_internet() -> bool {
         .status().map(|s| s.success()).unwrap_or(false)
 }
 
-/// ─── Detect wireless interface ───
+/// ─── Detect wireless interface via multiple methods ───
 fn detect_wifi_iface() -> Option<String> {
+    // Method 1: iw dev (standard nl80211)
     let out = Command::new("sh")
         .args(["-c", "iw dev 2>/dev/null | grep Interface | awk '{print $2}' | head -1"])
         .output().ok()
         .and_then(|o| String::from_utf8(o.stdout).ok())?;
     let name = out.trim().to_string();
-    if name.is_empty() { None } else { Some(name) }
+    if !name.is_empty() { return Some(name); }
+
+    // Method 2: /sys/class/net/*/wireless (wireless extensions)
+    let out = Command::new("sh")
+        .args(["-c", "for d in /sys/class/net/*; do \
+                       [ -d \"$d/wireless\" ] && { basename $d; break; } \
+                       done"])
+        .output().ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())?;
+    let name = out.trim().to_string();
+    if !name.is_empty() { return Some(name); }
+
+    // Method 3: iw dev * info on each non-lo interface
+    let out = Command::new("sh")
+        .args(["-c", "for d in /sys/class/net/*; do \
+                       name=$(basename $d); \
+                       [ \"$name\" = \"lo\" ] && continue; \
+                       iw dev \"$name\" info 2>/dev/null | grep -q wiphy && { echo \"$name\"; break; } \
+                       done"])
+        .output().ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())?;
+    let name = out.trim().to_string();
+    if !name.is_empty() { Some(name) } else { None }
 }
 
 /// ─── Load network drivers, bring interfaces up, run DHCP ───
 fn bring_up_network() {
-    // Load network drivers
-    Command::new("sh").args(["-c",
-        "modprobe virtio_net 2>/dev/null; \
-         modprobe virtio 2>/dev/null; \
-         modprobe virtio_ring 2>/dev/null; \
-         modprobe virtio_pci 2>/dev/null; \
-         modprobe e1000 2>/dev/null; \
-         modprobe e100 2>/dev/null; \
-         modprobe r8169 2>/dev/null; \
-         sleep 1"]).status().ok();
+    // Check if any interface already has an IP
+    let has_ip = Command::new("sh")
+        .args(["-c", "ip -4 addr show | grep -q 'inet ' && echo yes || echo no"])
+        .output().ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim() == "yes")
+        .unwrap_or(false);
 
-    // Bring all non-lo interfaces up and run DHCP
+    if has_ip {
+        // Already have an IP — verify default route exists
+        Command::new("sh").args(["-c",
+            "ip route | grep -q default || \
+             (ip route add default via 10.0.2.2 2>/dev/null; \
+              ip route add default via 192.168.1.1 2>/dev/null)"]).status().ok();
+        return;
+    }
+
+    // Load NIC modules using insmod in dependency order
+    Command::new("sh").args(["-c",
+        "for d in /lib/modules/*/; do \
+           [ -f \"${d}virtio_net.ko\" ] || [ -f \"${d}cfg80211.ko\" ] || continue; \
+           insmod \"${d}failover.ko\" 2>/dev/null; \
+           insmod \"${d}net_failover.ko\" 2>/dev/null; \
+           insmod \"${d}virtio_net.ko\" 2>/dev/null; \
+           insmod \"${d}e1000.ko\" 2>/dev/null; \
+           insmod \"${d}cfg80211.ko\" 2>/dev/null; \
+           insmod \"${d}mac80211.ko\" 2>/dev/null; \
+           insmod \"${d}iwlwifi.ko\" 2>/dev/null; \
+           insmod \"${d}iwlmvm.ko\" 2>/dev/null; \
+           insmod \"${d}ath.ko\" 2>/dev/null; \
+           insmod \"${d}ath9k_hw.ko\" 2>/dev/null; \
+           insmod \"${d}ath9k_common.ko\" 2>/dev/null; \
+           insmod \"${d}ath9k.ko\" 2>/dev/null; \
+           insmod \"${d}ath10k_core.ko\" 2>/dev/null; \
+           insmod \"${d}ath10k_pci.ko\" 2>/dev/null; \
+           insmod \"${d}rtl8xxxu.ko\" 2>/dev/null; \
+           insmod \"${d}rtw88_core.ko\" 2>/dev/null; \
+           insmod \"${d}rtw88_8822ce.ko\" 2>/dev/null; \
+           break; \
+         done 2>/dev/null; \
+         sleep 2"]).status().ok();
+
+    // Bring interfaces up and start DHCP
     Command::new("sh").args(["-c",
         "for iface in /sys/class/net/*; do \
            name=$(basename $iface); \
            [ \"$name\" = \"lo\" ] && continue; \
            ip link set $name up 2>/dev/null; \
-           dhcpcd -q $name 2>/dev/null || udhcpc -i $name -b -q 2>/dev/null; \
-         done"]).status().ok();
+           dhcpcd -q $name 2>/dev/null || udhcpc -i $name -b -q 2>/dev/null & \
+         done; \
+         sleep 3"]).status().ok();
 }
 
 /// ─── Show network interfaces status ───
@@ -265,117 +320,296 @@ fn show_network_status() {
     }
 }
 
-/// ─── Network setup (Ethernet auto, WiFi on demand, blocks) ───
-fn setup_wifi() {
-    println!("     {}Network setup...{}", NEON_CYAN, HX);
+/// ─── WiFi network info ───
+#[derive(Debug)]
+struct WifiNetwork {
+    ssid: String,
+    signal: String,
+    security: String,
+}
 
-    // Step 1: load drivers and bring up network
+/// ─── Smart fast scan using iw trigger+dump ───
+fn scan_wifi(iface: &str) -> Vec<WifiNetwork> {
+    // Trigger scan (instant)
+    Command::new("sh")
+        .args(["-c", &format!("iw dev {} scan trigger 2>/dev/null", iface)])
+        .status().ok();
+    std::thread::sleep(std::time::Duration::from_secs(2));
+
+    // Dump scan results and parse
+    let out = Command::new("sh")
+        .args(["-c", &format!("iw dev {} scan dump 2>/dev/null", iface)])
+        .output().ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default();
+
+    let mut networks: Vec<WifiNetwork> = Vec::new();
+    let mut current_ssid = String::new();
+    let mut current_signal = String::new();
+    let mut current_security = String::new();
+
+    for line in out.lines() {
+        let line = line.trim();
+        if line.starts_with("SSID:") {
+            // Push previous network if we have one
+            if !current_ssid.is_empty() {
+                networks.push(WifiNetwork {
+                    ssid: current_ssid.clone(),
+                    signal: current_signal.clone(),
+                    security: current_security.clone(),
+                });
+            }
+            current_ssid = line[5..].trim().to_string();
+            current_signal.clear();
+            current_security.clear();
+        } else if line.starts_with("signal:") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                current_signal = parts[1].to_string();
+            }
+        } else if line.contains("WPA2") || line.contains("WPA3") || line.contains("802.11i") {
+            if !current_security.contains("WPA") {
+                if line.contains("WPA2") { current_security.push_str("WPA2 "); }
+                if line.contains("WPA3") { current_security.push_str("WPA3 "); }
+            }
+        } else if line.contains("WEP") {
+            if !current_security.contains("WEP") {
+                current_security.push_str("WEP ");
+            }
+        } else if line.contains("802.11w") || line.contains("PMF") {
+            // Management Frame Protection
+        }
+    }
+    // Push last network
+    if !current_ssid.is_empty() {
+        networks.push(WifiNetwork {
+            ssid: current_ssid,
+            signal: current_signal,
+            security: if current_security.is_empty() { "Open".to_string() } else { current_security.trim().to_string() },
+        });
+    }
+
+    // Remove duplicates (same SSID, keep strongest signal)
+    let mut seen = std::collections::HashSet::new();
+    networks.retain(|n| seen.insert(n.ssid.clone()));
+
+    networks.sort_by(|a, b| {
+        let sig_a = a.signal.trim_end_matches("dBm").trim().parse::<f64>().unwrap_or(-100.0);
+        let sig_b = b.signal.trim_end_matches("dBm").trim().parse::<f64>().unwrap_or(-100.0);
+        sig_b.partial_cmp(&sig_a).unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    networks
+}
+
+/// ─── Show scan results ───
+fn show_networks(networks: &[WifiNetwork]) {
+    println!("     {}┌─────────────────────────────────────────────────────┐{}", DIM, HX);
+    println!("     {}│{} {}Available WiFi Networks{}                          {}│{}",
+        DIM, HX, NEON_CYAN, HX, DIM, HX);
+    println!("     {}├─────────────────────────────────────────────────────┤{}", DIM, HX);
+    if networks.is_empty() {
+        println!("     {}│{}   No networks found (try again or type SSID)         {}│{}",
+            DIM, HX, DIM, HX);
+    } else {
+        for (i, net) in networks.iter().enumerate() {
+            let idx = i + 1;
+            let sig_bar = if let Ok(sig) = net.signal.trim_end_matches("dBm").trim().parse::<f64>() {
+                let bars = ((sig + 100.0) / 10.0).round().max(0.0).min(5.0) as usize;
+                format!("{}", "█".repeat(bars) + &"░".repeat(5 - bars))
+            } else {
+                "?????".to_string()
+            };
+            let ssid_display = if net.ssid.len() > 25 {
+                format!("{:.25}", net.ssid)
+            } else {
+                format!("{:25}", net.ssid)
+            };
+            println!("     {}│{} {}{:>2}.{}{} {} {} {} {}│{}",
+                DIM, HX,
+                NEON_PURPLE, idx, HX,
+                ssid_display,
+                DIM, sig_bar, HX,
+                DIM, HX);
+        }
+    }
+    println!("     {}└─────────────────────────────────────────────────────┘{}", DIM, HX);
+}
+
+/// ─── Connect to WiFi ───
+fn connect_wifi(iface: &str, ssid: &str, password: &str) -> bool {
+    print!("     {}Connecting to '{}'...{}", NEON_CYAN, ssid, HX);
+    std::io::stdout().flush().ok();
+
+    for attempt in 1..=3 {
+        if attempt > 1 {
+            print!("\r     {}Retry {}/3...{}", NEON_YELLOW, attempt, HX);
+            std::io::stdout().flush().ok();
+        }
+
+        let ok = Command::new("sh")
+            .args(["-c", &format!(
+                "killall wpa_supplicant dhcpcd 2>/dev/null; \
+                 ip link set {} up 2>/dev/null; \
+                 wpa_passphrase '{}' '{}' > /tmp/wpa.conf 2>/dev/null; \
+                 wpa_supplicant -B -i {} -c /tmp/wpa.conf 2>/dev/null; \
+                 sleep 2; \
+                 dhcpcd -q {} 2>/dev/null || udhcpc -i {} -b -q 2>/dev/null; \
+                 sleep 2; \
+                 ping -c 1 -W 3 1.1.1.1 >/dev/null 2>&1",
+                iface, ssid, password, iface, iface, iface
+            )])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+
+        if ok { return true; }
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+    false
+}
+
+/// ─── WiFi scan → connect loop for a given interface ───
+fn setup_wifi_selected(iface: &str) -> bool {
+    println!("     {}{}WiFi adapter: {} {} {}", NEON_GREEN, BOLD, iface, HX, DIM);
+    println!();
+    loop {
+        // Scan
+        println!("     {}Scanning for networks...{}", NEON_CYAN, HX);
+        let networks = scan_wifi(iface);
+        show_networks(&networks);
+        println!();
+
+        // Prompt for network name
+        let input = prompt(&format!(
+            "     {}┃{} {}Enter network name{} ({}or # from list{}){}: {}",
+            DIM, HX, FG, HX, DIM, HX, NEON_CYAN, HX));
+
+        if input.trim().is_empty() { continue; }
+
+        let ssid = if let Ok(n) = input.trim().parse::<usize>() {
+            if n > 0 && n <= networks.len() {
+                networks[n - 1].ssid.clone()
+            } else {
+                println!("     {}  Invalid number — type SSID name{}", NEON_RED, HX);
+                continue;
+            }
+        } else {
+            input.trim().to_string()
+        };
+
+        let password = prompt_password(&format!(
+            "     {}┃{} {}Password{} ({}blank for open{}){}: {}",
+            DIM, HX, FG, HX, DIM, HX, NEON_PURPLE, HX));
+
+        if connect_wifi(iface, &ssid, &password) {
+            println!("     {}✓ Connected to '{}'{}", NEON_GREEN, ssid, HX);
+            println!();
+            prompt(&format!("     {}  Press Enter to continue{}", DIM, HX));
+            return true;
+        }
+        println!("     {}✗ Connection failed — try again{}", NEON_RED, HX);
+    }
+}
+
+/// ─── Network setup — always shows a window, always waits for user ───
+fn setup_wifi() {
+    println!("     {}{}╔══════════════════════════════════════════════════╗{}", DIM, BOLD, HX);
+    println!("     {}{}║          NETWORK SETUP (mandatory)             ║{}", DIM, BOLD, HX);
+    println!("     {}{}╚══════════════════════════════════════════════════╝{}", DIM, BOLD, HX);
+    println!();
+
+    // Load NIC drivers
     bring_up_network();
     std::thread::sleep(std::time::Duration::from_secs(2));
 
-    // Step 2: check internet
-    if check_internet() {
-        println!("     {}✓ Internet OK{}", NEON_GREEN, HX);
-        return;
+    // Show current interface status (all interfaces, reliable method)
+    println!("     {}Interfaces:{}", DIM, HX);
+    let iface_out = Command::new("sh")
+        .args(["-c", "ls /sys/class/net/ 2>/dev/null | grep -v lo | while read if; do \
+                       state=$$(cat /sys/class/net/$$if/operstate 2>/dev/null || echo '?'); \
+                       echo \"  $$if ($$state)\"; \
+                     done || echo '  (none)'"])
+        .output().ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default();
+    for line in iface_out.lines() {
+        println!("     {}{}{}", DIM, line, HX);
+    }
+    println!();
+
+    // Detect WiFi
+    if let Some(iface) = detect_wifi_iface() {
+        let _ = setup_wifi_selected(&iface); return;
     }
 
-    // Step 3: show interface status and retry DHCP
-    println!("     {}Waiting for DHCP...{}", NEON_CYAN, HX);
-    show_network_status();
-    bring_up_network();
-    std::thread::sleep(std::time::Duration::from_secs(4));
+    // No WiFi — show diagnostics and try Ethernet
+    println!("     {}WiFi adapter not detected{}", NEON_YELLOW, HX);
+    let all_ifaces = Command::new("sh")
+        .args(["-c", "ls /sys/class/net/ 2>/dev/null | grep -v lo || echo '(none)'"])
+        .output().ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default();
+    println!("     {}Available interfaces: {}{}", DIM, all_ifaces.trim().replace('\n', ", "), HX);
+    println!();
+    println!("     {}Checking Ethernet...{}", NEON_CYAN, HX);
 
-    if check_internet() {
-        println!("     {}✓ Internet OK (DHCP){}", NEON_GREEN, HX);
-        return;
-    }
+    for attempt in 1..=5 {
+        bring_up_network();
+        // Get IP
+        let ip_out = Command::new("sh")
+            .args(["-c", "ip -4 addr show scope global 2>/dev/null | grep inet | awk '{print $2}' | head -1"])
+            .output().ok()
+            .and_then(|o| String::from_utf8(o.stdout).ok())
+            .unwrap_or_default();
+        let ip = ip_out.trim().to_string();
 
-    // Step 4: if no WiFi hardware, loop with DHCP
-    let wifi_iface = detect_wifi_iface();
-    if wifi_iface.is_none() {
-        println!("     {}No internet and no WiFi hardware found.{}", NEON_RED, HX);
-        println!("     {}  Retrying network...{}", DIM, HX);
-        loop {
-            bring_up_network();
-            std::thread::sleep(std::time::Duration::from_secs(3));
-            if check_internet() {
-                println!("     {}✓ Internet OK{}", NEON_GREEN, HX);
-                return;
+        if !ip.is_empty() {
+            println!("     {}✓ IP: {} obtained{}", NEON_GREEN, ip, HX);
+            // Verify gateway
+            let gw = Command::new("sh")
+                .args(["-c", "ip route show default 2>/dev/null | awk '{print $3}' | head -1"])
+                .output().ok()
+                .and_then(|o| String::from_utf8(o.stdout).ok())
+                .unwrap_or_default()
+                .trim().to_string();
+            if !gw.is_empty() {
+                println!("     {}✓ Gateway: {}{}", NEON_GREEN, gw, HX);
             }
-            show_network_status();
-            println!("     {}  Retrying... (check cable or WiFi adapter){}", DIM, HX);
-        }
-    }
-
-    // Step 5: WiFi hardware found
-    let iface = wifi_iface.unwrap();
-    println!("     {}WiFi: {}{}", NEON_GREEN, iface, HX);
-
-    Command::new("sh").args(["-c", &format!(
-        "killall wpa_supplicant 2>/dev/null; \
-         ip link set {} up 2>/dev/null; \
-         synth3x-fastscan >/dev/null 2>&1 &", iface)]).status().ok();
-
-    loop {
-        println!();
-        if !prompt_yes(&format!(
-            "     {}┃{} {}Connect to WiFi?{} [{}y/skip]{}: ",
-            DIM, HX, FG, HX, NEON_CYAN, HX))
-        {
-            if check_internet() {
-                println!("     {}» Internet OK via Ethernet{}", NEON_YELLOW, HX);
-                return;
+            // Verify DNS
+            let dns = Command::new("sh")
+                .args(["-c", "cat /etc/resolv.conf 2>/dev/null | grep nameserver | head -1 | awk '{print $2}'"])
+                .output().ok()
+                .and_then(|o| String::from_utf8(o.stdout).ok())
+                .unwrap_or_default()
+                .trim().to_string();
+            if !dns.is_empty() {
+                println!("     {}✓ DNS: {}{}", NEON_GREEN, dns, HX);
             }
-            println!("     {}» No internet. Use WiFi or plug Ethernet.{}", NEON_RED, HX);
-            continue;
-        }
-
-        let ssid = prompt(&format!(
-            "     {}┃{} {}Network name:{} {}",
-            DIM, HX, FG, HX, NEON_CYAN));
-
-        let password = prompt_password(&format!(
-            "     {}┃{} {}Password:{} {}",
-            DIM, HX, FG, HX, NEON_PURPLE));
-
-        print!("     {}Connecting...{}", NEON_CYAN, HX);
-        std::io::stdout().flush().ok();
-
-        let mut ok = false;
-        for attempt in 1..=3 {
-            if attempt > 1 {
-                print!("\r     {}Retry {}/3...{}", NEON_YELLOW, attempt, HX);
-                std::io::stdout().flush().ok();
-            }
-
-            ok = Command::new("sh")
-                .args(["-c", &format!(
-                    "killall wpa_supplicant dhcpcd 2>/dev/null; \
-                     ip link set {} up 2>/dev/null; \
-                     wpa_passphrase '{}' '{}' > /tmp/wpa.conf 2>/dev/null; \
-                     wpa_supplicant -B -i {} -c /tmp/wpa.conf 2>/dev/null; \
-                     sleep 2; \
-                     dhcpcd -q {} 2>/dev/null || udhcpc -i {} -b -q 2>/dev/null; \
-                     sleep 2; \
-                     ping -c 1 -W 3 1.1.1.1 >/dev/null 2>&1",
-                    iface, ssid, password, iface, iface, iface
-                )])
-                .status()
-                .map(|s| s.success())
+            // Quick ping test
+            let ok = Command::new("sh")
+                .args(["-c", "ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1 && echo ok || echo fail"])
+                .output().ok()
+                .and_then(|o| String::from_utf8(o.stdout).ok())
+                .map(|s| s.trim() == "ok")
                 .unwrap_or(false);
-
-            if ok { break; }
-            std::thread::sleep(std::time::Duration::from_secs(1));
-        }
-
-        if ok {
-            println!("\r     {}✓ Connected to '{}'{}", NEON_GREEN, ssid, HX);
+            if ok {
+                println!("     {}✓ Internet: reachable{}", NEON_GREEN, HX);
+            } else {
+                println!("     {}⚠ Internet: ping failed (but network may still work){}", NEON_YELLOW, HX);
+            }
+            println!();
+            prompt(&format!("     {}  Press Enter to continue{}", DIM, HX));
             return;
         }
-        println!("\r     {}✗ Failed{}", NEON_RED, HX);
-        show_network_status();
-        show_hint("Check name and password, or use Ethernet.");
+        println!("     {}  Attempt {}/5...{}", DIM, attempt, HX);
+        std::thread::sleep(std::time::Duration::from_secs(2));
     }
+
+    println!("     {}✗ No internet connection{}", NEON_RED, HX);
+    show_hint("Plug Ethernet cable and restart the installer. Use WiFi if available.");
+    println!();
+    prompt(&format!("     {}  Press Enter to continue{}", DIM, HX));
 }
 
 /// ─── Drive safety check ───

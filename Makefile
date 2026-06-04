@@ -123,6 +123,7 @@ rust: $(RUST_INSTALLER)
 
 # ─── Initramfs ───
 INITRAMFS = $(BUILD)/initrd.img
+ISO_KVER = 6.18.33-2-cachyos-lts
 $(INITRAMFS): $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_BINS) $(INSTALLER_DOWNLOADER) $(INSTALLER_WIFI) $(RUST_INSTALLER)
 	@echo "  ── Building initramfs..."
 	@rm -rf $(BUILD)/initramfs
@@ -133,10 +134,112 @@ $(INITRAMFS): $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_B
 	@mkdir -p $(BUILD)/initramfs/etc $(BUILD)/initramfs/var/db/syn
 	@mkdir -p $(BUILD)/initramfs/var/cache/syn
 	@mkdir -p $(BUILD)/initramfs/usr/local/bin
-	@mkdir -p $(BUILD)/initramfs/lib/modules
-	@for mod in virtio_net virtio virtio_ring virtio_pci; do \
-		path=$$(find /lib/modules/$(shell uname -r) -name "$${mod}.ko*" 2>/dev/null | head -1); \
-		[ -n "$$path" ] && cp -n "$$path" $(BUILD)/initramfs/lib/modules/ 2>/dev/null || true; done 2>/dev/null || true
+	@mkdir -p $(BUILD)/initramfs/lib/modules $(BUILD)/initramfs/usr/share/udhcpc
+	# udhcpc script — sets IP/route/DNS when lease is obtained
+	@printf '#!/bin/sh\ncase "$$1" in\n  bound|renew)\n    ip addr add $$ip/$$mask dev $$interface 2>/dev/null\n    [ -n "$$router" ] && ip route add default via $$router dev $$interface 2>/dev/null\n    for ns in $$dns; do echo "nameserver $$ns"; done > /etc/resolv.conf 2>/dev/null\n    ;;\n  deconfig|nak)\n    ip addr flush dev $$interface 2>/dev/null\n    ;;\nesac\n' > $(BUILD)/initramfs/usr/share/udhcpc/default.script
+	@chmod +x $(BUILD)/initramfs/usr/share/udhcpc/default.script
+	# Copy NIC + WiFi kernel modules for ISO kernel
+	@KVER=$(ISO_KVER); \
+	MODDIR=""; \
+	for d in /lib/modules/$$KVER /usr/lib/modules/$$KVER; do \
+		[ -d "$$d" ] && MODDIR="$$d" && break; \
+	done; \
+	if [ -n "$$MODDIR" ]; then \
+		MODDST="$(BUILD)/initramfs/lib/modules/$$KVER"; \
+		mkdir -p "$$MODDST"; \
+		# Ethernet modules \
+		for mod in virtio_net net_failover failover e1000 e1000e r8169; do \
+			src=$$(find "$$MODDIR" -name "$${mod}.ko*" -type f 2>/dev/null | head -1); \
+			if [ -n "$$src" ]; then \
+				case "$$src" in \
+					*.zst) zstd -dq "$$src" -o "$$MODDST/$${mod}.ko" 2>/dev/null;; \
+					*.xz)  xz -dc "$$src" > "$$MODDST/$${mod}.ko" 2>/dev/null;; \
+					*)     cp -n "$$src" "$$MODDST/$${mod}.ko" 2>/dev/null;; \
+				esac; \
+				echo "  ── Module: $${mod}.ko"; \
+			fi; \
+		done; \
+		# WiFi core: cfg80211 + mac80211 \
+		for wcore in cfg80211 mac80211; do \
+			src=$$(find "$$MODDIR" -path "*/net/$${wcore}.ko*" -o -path "*/net/wireless/$${wcore}.ko*" -type f 2>/dev/null | head -1); \
+			if [ -z "$$src" ]; then src=$$(find "$$MODDIR" -name "$${wcore}.ko*" -type f 2>/dev/null | head -1); fi; \
+			if [ -n "$$src" ]; then \
+				case "$$src" in \
+					*.zst) zstd -dq "$$src" -o "$$MODDST/$${wcore}.ko" 2>/dev/null && echo "  ── Module: $${wcore}.ko";; \
+					*.xz)  xz -dc "$$src" > "$$MODDST/$${wcore}.ko" 2>/dev/null && echo "  ── Module: $${wcore}.ko";; \
+					*)     cp -n "$$src" "$$MODDST/$${wcore}.ko" 2>/dev/null && echo "  ── Module: $${wcore}.ko";; \
+				esac; \
+			fi; \
+		done; \
+		# Common WiFi drivers: Intel + Atheros + Realtek \
+		for wpath in \
+			"drivers/net/wireless/intel/iwlwifi/iwlwifi.ko" \
+			"drivers/net/wireless/intel/iwlwifi/mvm/iwlmvm.ko" \
+			"drivers/net/wireless/intel/iwlwifi/mld/iwlmld.ko" \
+			"drivers/net/wireless/intel/iwlwifi/dvm/iwldvm.ko" \
+			"drivers/net/wireless/intel/iwlegacy/iwlegacy.ko" \
+			"drivers/net/wireless/intel/iwlegacy/iwl3945.ko" \
+			"drivers/net/wireless/intel/iwlegacy/iwl4965.ko" \
+			"drivers/net/wireless/ath/ath.ko" \
+			"drivers/net/wireless/ath/ath9k/ath9k_hw.ko" \
+			"drivers/net/wireless/ath/ath9k/ath9k_common.ko" \
+			"drivers/net/wireless/ath/ath9k/ath9k.ko" \
+			"drivers/net/wireless/ath/ath10k/ath10k_core.ko" \
+			"drivers/net/wireless/ath/ath10k/ath10k_pci.ko" \
+			"drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko" \
+			"drivers/net/wireless/realtek/rtw88/rtw88_core.ko" \
+			"drivers/net/wireless/realtek/rtw88/rtw88_8822ce.ko"; do \
+			src=$$(find "$$MODDIR" -path "*/$${wpath}.zst" -o -path "*/$${wpath}" -type f 2>/dev/null | head -1); \
+			if [ -n "$$src" ]; then \
+				dst_mod=$$(basename $${wpath}); \
+				case "$$src" in \
+					*.zst) zstd -dq "$$src" -o "$$MODDST/$${dst_mod}" 2>/dev/null && echo "  ── Module: $${dst_mod}";; \
+					*)     cp -n "$$src" "$$MODDST/$${dst_mod}" 2>/dev/null && echo "  ── Module: $${dst_mod}";; \
+				esac; \
+			fi; \
+		done; \
+		depmod -b "$(BUILD)/initramfs" $$KVER 2>/dev/null; \
+		echo "  ── modules.dep generated for $$KVER"; \
+	fi
+	# Copy firmware blobs for WiFi modules — auto-detect from module requests
+	@mkdir -p $(BUILD)/initramfs/lib/firmware
+	@mkdir -p $(BUILD)/fw_staging
+	@find /usr/lib/modules/$(ISO_KVER)/kernel/drivers/net/wireless -name '*.ko.zst' \
+		-exec modinfo -F firmware {} \; 2>/dev/null | sort -u | while read fw; do \
+		[ -z "$$fw" ] && continue; \
+		src="/lib/firmware/$${fw}.zst"; \
+		[ -f "$$src" ] || src="/lib/firmware/$${fw}"; \
+		[ -f "$$src" ] || continue; \
+		dst="$(BUILD)/fw_staging/$$fw"; \
+		mkdir -p "$$(dirname "$$dst")"; \
+		case "$$src" in \
+			*.zst) zstd -d -f "$$src" --output-dir-flat "$$(dirname "$$dst")" 2>/dev/null;; \
+			*) cp "$$src" "$$dst" 2>/dev/null;; \
+		esac && echo "  ── FW: $$fw"; \
+	done
+	# rtlwifi — include all available (additional)
+	@if [ -d /lib/firmware/rtlwifi ]; then \
+		mkdir -p $(BUILD)/fw_staging/rtlwifi; \
+		for fw in /lib/firmware/rtlwifi/*; do \
+			[ -f "$$fw" ] || continue; \
+			name=$$(basename "$$fw"); name=$${name%.zst}; \
+			[ -f "$(BUILD)/fw_staging/rtlwifi/$$name" ] && continue; \
+			case "$$fw" in \
+				*.zst) zstd -d -f "$$fw" --output-dir-flat $(BUILD)/fw_staging/rtlwifi 2>/dev/null;; \
+				*)     cp "$$fw" "$(BUILD)/fw_staging/rtlwifi/$$name" 2>/dev/null;; \
+			esac; \
+		done; \
+		echo "  ── FW: rtlwifi (all)"; \
+	fi
+	@cp -r $(BUILD)/fw_staging/* $(BUILD)/initramfs/lib/firmware/ 2>/dev/null; \
+		rm -rf $(BUILD)/fw_staging
+	@echo "  ── Firmware copied"
+	# SSL CA certificates for curl/wget HTTPS
+	@mkdir -p $(BUILD)/initramfs/etc/ssl/certs
+	@cp /etc/ssl/certs/ca-certificates.crt $(BUILD)/initramfs/etc/ssl/certs/ 2>/dev/null && \
+		echo "  ── SSL CA certificates: added" || \
+		echo "  ── SSL CA certificates: not found"
+	@cp $(INIT) $(BUILD)/initramfs/init
 	@cp $(INIT) $(BUILD)/initramfs/init
 	@cp $(COMPOSITOR) $(BUILD)/initramfs/usr/bin/synth3x
 	@cp $(SYN_CMD) $(BUILD)/initramfs/usr/bin/syn
@@ -155,7 +258,7 @@ $(INITRAMFS): $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_B
 	# Busybox
 	@cp /bin/busybox $(BUILD)/initramfs/bin/busybox 2>/dev/null || true
 	@cd $(BUILD)/initramfs && ln -sf busybox bin/sh 2>/dev/null; \
-		for app in ls cat mount umount ps kill mkdir cp mv rm dmesg grep find chmod chown df du echo env export hostname id killall less login more sed sleep sort tail tee test touch uname watch which whoami yes yes clear reset stty; do \
+		for app in ls cat mount umount ps kill mkdir cp mv rm dmesg grep find chmod chown df du echo env export hostname id killall less login more sed sleep sort tail tee test touch uname watch which whoami yes yes clear reset stty insmod modprobe rmmod lsmod depmod; do \
 			ln -sf /bin/busybox bin/$$app 2>/dev/null; done
 	@cd $(BUILD)/initramfs && mkdir -p sbin; \
 		for app in ifconfig route reboot halt poweroff; do \
@@ -228,7 +331,8 @@ gen-version: boot/grub.cfg
 iso: $(INITRAMFS) boot/grub.cfg
 	@echo "  ── Building ISO..."
 	@mkdir -p iso/boot/grub
-	@cp /boot/vmlinuz-linux iso/boot/vmlinuz-linux 2>/dev/null || \
+	@cp /usr/lib/modules/$(ISO_KVER)/vmlinuz iso/boot/vmlinuz-linux 2>/dev/null || \
+		cp /boot/vmlinuz-linux iso/boot/vmlinuz-linux 2>/dev/null || \
 		cp $(BUILD)/vmlinuz-linux iso/boot/vmlinuz-linux 2>/dev/null || \
 		{ echo "  ── ERROR: no kernel found (vmlinuz-linux). Copy one to build/vmlinuz-linux"; exit 1; }
 	@cp $(INITRAMFS) iso/boot/initrd.img 2>/dev/null || true
@@ -241,7 +345,8 @@ iso: $(INITRAMFS) boot/grub.cfg
 	fi
 
 # ─── Run in QEMU ───
-KERNEL ?= $(shell test -f /boot/vmlinuz-linux && echo /boot/vmlinuz-linux || echo $(BUILD)/vmlinuz-linux)
+KERNEL ?= $(shell test -f /usr/lib/modules/$(ISO_KVER)/vmlinuz && echo /usr/lib/modules/$(ISO_KVER)/vmlinuz || \
+                test -f /boot/vmlinuz-linux && echo /boot/vmlinuz-linux || echo $(BUILD)/vmlinuz-linux)
 
 run: $(INITRAMFS)
 	qemu-system-x86_64 -kernel $(KERNEL) -initrd $(INITRAMFS) \

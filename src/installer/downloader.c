@@ -93,13 +93,13 @@ static int download_file(const char *url, const char *dest) {
     /* Try curl first */
     if (cmd_exists("curl")) {
         printf("  %sDownloading with curl...%s\n", CYAN, NC);
-        ret = run_cmd("curl -L --progress-bar -o '%s' '%s' 2>&1",
+        ret = run_cmd("curl -L --progress-bar --cacert /etc/ssl/certs/ca-certificates.crt -o '%s' '%s' 2>&1",
                       dest, url);
     }
     /* Fallback to wget */
     else if (cmd_exists("wget")) {
         printf("  %sDownloading with wget...%s\n", CYAN, NC);
-        ret = run_cmd("wget -q --show-progress -O '%s' '%s' 2>&1",
+        ret = run_cmd("wget -q --show-progress --ca-certificate=/etc/ssl/certs/ca-certificates.crt -O '%s' '%s' 2>&1",
                       dest, url);
     }
     /* Fallback to busybox wget */
@@ -133,10 +133,13 @@ static int decompress(const char *archive, const char *dest_dir) {
     printf("  %sDecompressing: %s%s\n", CYAN, archive, NC);
 
     if (strstr(archive, ".tar.xz")) {
-        return run_cmd("tar -xpf '%s' -C '%s' --xattrs-include='*' --numeric-owner 2>&1",
+        return run_cmd("tar -xJpf '%s' -C '%s' 2>&1",
                        archive, dest_dir);
     } else if (strstr(archive, ".tar.gz")) {
-        return run_cmd("tar -xzf '%s' -C '%s' --xattrs-include='*' --numeric-owner 2>&1",
+        return run_cmd("tar -xzf '%s' -C '%s' 2>&1",
+                       archive, dest_dir);
+    } else if (strstr(archive, ".tar")) {
+        return run_cmd("tar -xpf '%s' -C '%s' 2>&1",
                        archive, dest_dir);
     }
     return -1;

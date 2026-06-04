@@ -106,7 +106,7 @@ static void run_dhcp(void) {
         pid_t pid = fork();
         if (pid == 0) {
             execl("/sbin/dhcpcd", "dhcpcd", "-q", de->d_name, NULL);
-            execl("/bin/busybox", "busybox", "udhcpc", "-i", de->d_name, "-b", "-q", "-f", NULL);
+            execl("/bin/busybox", "busybox", "udhcpc", "-i", de->d_name, "-q", NULL);
             _exit(1);
         }
     }

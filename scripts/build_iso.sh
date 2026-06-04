@@ -266,22 +266,26 @@ else
     echo "  ⚠ No kernel modules directory found, skipping GPU modules"
     KVER=""
 fi
-if [ -n "$KVER" ]; then
-    MODDIR="/lib/modules/$KVER"
-    [ ! -d "$MODDIR" ] && MODDIR="/usr/lib/modules/$KVER"
-    echo "    Kernel modules: $MODDIR"
-    for mod in bochs virtio-gpu virtio_dma_buf ttm serio_raw psmouse mousedev virtio_input virtio_net virtio virtio_ring virtio_pci; do
-        src=$(find "$MODDIR" -name "${mod}.ko*" -type f 2>/dev/null | head -1)
-        if [ -n "$src" ]; then
-            case "$src" in
-                *.zst) zstd -dq "$src" -o "$INITRAMFS_DIR/lib/modules/${mod}.ko" 2>/dev/null ;;
-                *.xz)  xz -dc "$src" > "$INITRAMFS_DIR/lib/modules/${mod}.ko" 2>/dev/null ;;
-                *)     cp "$src" "$INITRAMFS_DIR/lib/modules/${mod}.ko" 2>/dev/null ;;
-            esac
-            echo "    ✓ ${mod}.ko"
-        fi
-    done
-fi
+    if [ -n "$KVER" ]; then
+        MODDIR="/lib/modules/$KVER"
+        [ ! -d "$MODDIR" ] && MODDIR="/usr/lib/modules/$KVER"
+        echo "    Kernel modules: $MODDIR"
+        MODDST="$INITRAMFS_DIR/lib/modules/$KVER"
+        mkdir -p "$MODDST"
+        for mod in virtio_net net_failover failover e1000 e1000e r8169 \
+                   bochs virtio-gpu virtio_dma_buf ttm serio_raw psmouse mousedev virtio_input; do
+            src=$(find "$MODDIR" -name "${mod}.ko*" -type f 2>/dev/null | head -1)
+            if [ -n "$src" ]; then
+                case "$src" in
+                    *.zst) zstd -dq "$src" -o "$MODDST/${mod}.ko" 2>/dev/null ;;
+                    *.xz)  xz -dc "$src" > "$MODDST/${mod}.ko" 2>/dev/null ;;
+                    *)     cp "$src" "$MODDST/${mod}.ko" 2>/dev/null ;;
+                esac
+                echo "    ✓ ${mod}.ko"
+            fi
+        done
+        depmod -b "$INITRAMFS_DIR" "$KVER" 2>/dev/null && echo "    ✓ modules.dep generated" || true
+    fi
 
 echo "  -- Creating /etc/sudoers for sudo support..."
 cat << 'EOF' > "$INITRAMFS_DIR/etc/sudoers"
