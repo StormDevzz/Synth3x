@@ -70,18 +70,12 @@ fn show_banner() {
     clear_screen();
     println!("{}", BG2);
     println!("{}     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓{}", NEON_CYAN, HX);
-    println!("{}     ▓{}  {}███████╗██╗   ██╗███╗   ██╗████████╗██╗  ██╗██████╗ ██╗  ██╗{}{}  ▓{}",
-        NEON_CYAN, HX, BG2, NEON_PURPLE, NEON_CYAN, HX);
-    println!("{}     ▓{}  {}██╔════╝╚██╗ ██╔╝████╗  ██║╚══██╔══╝██║  ██║╚══██╔══╝╚██╗██╔╝{}{}  ▓{}",
-        NEON_CYAN, HX, BG2, NEON_PURPLE, NEON_CYAN, HX);
-    println!("{}     ▓{}  {}███████╗ ╚████╔╝ ██╔██╗ ██║   ██║   ███████║   ██║    ╚███╔╝ {}{}  ▓{}",
-        NEON_CYAN, HX, BG2, NEON_PURPLE, NEON_CYAN, HX);
-    println!("{}     ▓{}  {}╚════██║  ╚██╔╝  ██║╚██╗██║   ██║   ██╔══██║   ██║    ██╔██╗ {}{}  ▓{}",
-        NEON_CYAN, HX, BG2, NEON_PURPLE, NEON_CYAN, HX);
-    println!("{}     ▓{}  {}███████║   ██║   ██║ ╚████║   ██║   ██║  ██║   ██║   ██╔╝ ██╗{}{}  ▓{}",
-        NEON_CYAN, HX, BG2, NEON_PURPLE, NEON_CYAN, HX);
-    println!("{}     ▓{}  {}╚══════╝   ╚═╝   ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═══╝   ╚═╝   ╚═╝  ╚═╝{}{}  ▓{}",
-        NEON_CYAN, HX, BG2, NEON_PURPLE, NEON_CYAN, HX);
+    println!("{}     ▓{}  {}                                                       {}▓{}",
+        NEON_CYAN, HX, BG2, NEON_CYAN, HX);
+    println!("{}     ▓{}  {}                  {}SYNTH3X v{}{}                  {}▓{}",
+        NEON_CYAN, HX, BG2, NEON_PURPLE, VERSION_TAG, NEON_PURPLE, NEON_CYAN, HX);
+    println!("{}     ▓{}  {}                                                       {}▓{}",
+        NEON_CYAN, HX, BG2, NEON_CYAN, HX);
     println!("{}     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓{}", NEON_CYAN, HX);
     println!();
     println!("{}     ════════════════════════════════════════════════════════════{}", DIM, HX);
@@ -210,13 +204,6 @@ fn format_size(bytes: u64) -> String {
     }
 }
 
-/// ─── Quick internet check ───
-fn check_internet() -> bool {
-    Command::new("ping")
-        .args(["-c", "1", "-W", "3", "1.1.1.1"])
-        .status().map(|s| s.success()).unwrap_or(false)
-}
-
 /// ─── Detect wireless interface via multiple methods ───
 fn detect_wifi_iface() -> Option<String> {
     // Method 1: iw dev (standard nl80211)
@@ -305,26 +292,12 @@ fn bring_up_network() {
          sleep 3"]).status().ok();
 }
 
-/// ─── Show network interfaces status ───
-fn show_network_status() {
-    let out = Command::new("sh")
-        .args(["-c", "ip addr show 2>/dev/null | grep -E '^[0-9]:|inet ' | head -20"])
-        .output().ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .unwrap_or_default();
-    if !out.is_empty() {
-        println!("     {}Interfaces:{}", DIM, HX);
-        for line in out.lines() {
-            println!("      {}", line.trim());
-        }
-    }
-}
-
 /// ─── WiFi network info ───
 #[derive(Debug)]
 struct WifiNetwork {
     ssid: String,
     signal: String,
+    #[allow(dead_code)]
     security: String,
 }
 
