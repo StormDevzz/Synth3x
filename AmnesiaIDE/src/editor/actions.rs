@@ -68,6 +68,7 @@ impl AmnesiaApp {
             Lang::Cpp    => format!("g++ -Wall -Wextra -o /tmp/amnesia_out '{}' 2>&1", path),
             Lang::Csharp => format!("mcs '{}' 2>&1 || echo 'C# not found'", path),
             Lang::Rust   => format!("rustc -o /tmp/amnesia_out '{}' 2>&1", path),
+            Lang::Go     => format!("go build -o /tmp/amnesia_out '{}' 2>&1", path),
             Lang::Asm    => format!("nasm -f elf64 '{}' -o /tmp/amnesia_out.o && ld -o /tmp/amnesia_out /tmp/amnesia_out.o 2>&1", path),
             _ => format!("gcc -Wall -Wextra -o /tmp/amnesia_out '{}' 2>&1 || echo 'no compiler'", path),
         };
@@ -86,7 +87,7 @@ impl AmnesiaApp {
             Lang::None => "",
             Lang::C => "C", Lang::Cpp => "C++",
             Lang::Csharp => "C#", Lang::Rust => "Rust",
-            Lang::Asm => "ASM",
+            Lang::Go => "Go", Lang::Asm => "ASM",
         };
         format!("{} {} {}  Ln {}, Col {}", fn_, dm, ls, self.cursor_line + 1, self.cursor_col + 1)
     }

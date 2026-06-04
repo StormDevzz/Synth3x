@@ -2,6 +2,13 @@ mod editor;
 mod terminal;
 mod file;
 mod syntax;
+mod install;
+mod notifications;
+mod creations;
+mod icon;
+mod dialog;
+mod github;
+mod bridge;
 
 fn main() -> Result<(), eframe::Error> {
     let options = eframe::NativeOptions {
@@ -14,6 +21,10 @@ fn main() -> Result<(), eframe::Error> {
     eframe::run_native(
         "AmnesiaIDE",
         options,
-        Box::new(|_cc| Box::<editor::AmnesiaApp>::default()),
+        Box::new(|cc| {
+            let mut app = editor::AmnesiaApp::default();
+            app.init_icons(&cc.egui_ctx);
+            Box::new(app)
+        }),
     )
 }

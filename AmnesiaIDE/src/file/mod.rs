@@ -1,4 +1,4 @@
-mod tree;
+pub mod tree;
 pub mod ops;
 pub mod workspace;
 

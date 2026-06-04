@@ -1,5 +1,5 @@
 #[derive(Clone, Copy, PartialEq)]
-pub enum Lang { None, C, Cpp, Csharp, Rust, Asm }
+pub enum Lang { None, C, Cpp, Csharp, Rust, Go, Asm }
 
 pub fn detect_lang(filename: &str) -> Lang {
     let ext = filename.rsplit('.').next().unwrap_or("");
@@ -8,6 +8,7 @@ pub fn detect_lang(filename: &str) -> Lang {
         "cpp" | "cc" | "cxx" | "hpp" | "hxx" => Lang::Cpp,
         "cs"                 => Lang::Csharp,
         "rs"                 => Lang::Rust,
+        "go"                 => Lang::Go,
         "asm" | "s" | "S" | "inc" => Lang::Asm,
         _                    => Lang::None,
     }
@@ -47,6 +48,11 @@ const KW_RUST: &[&str] = &[
     "async","await","dyn","abstract","become","box","do","final",
     "macro","override","priv","try","typeof","unsized","virtual","yield",
 ];
+const KW_GO: &[&str] = &[
+    "break","case","chan","const","continue","default","defer","else",
+    "fallthrough","for","func","go","goto","if","import","interface",
+    "map","package","range","return","select","struct","switch","type","var",
+];
 const KW_ASM: &[&str] = &[
     "section","global","extern","bits","org","align","db","dw","dd",
     "dq","resb","resw","resd","resq","incbin","equ","times","macro",
@@ -64,6 +70,7 @@ fn keywords(lang: Lang) -> &'static [&'static str] {
         Lang::Cpp    => KW_CPP,
         Lang::Csharp => KW_CS,
         Lang::Rust   => KW_RUST,
+        Lang::Go     => KW_GO,
         Lang::Asm    => KW_ASM,
         Lang::None   => &[],
     }
