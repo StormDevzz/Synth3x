@@ -85,7 +85,7 @@ fn show_banner() {
     println!("{}     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓{}", NEON_CYAN, HX);
     println!();
     println!("{}     ════════════════════════════════════════════════════════════{}", DIM, HX);
-    println!("{}     ┃{}  {}SYNTH3X-ANON v{}   TERMINAL INSTALLER{}              {}┃{}",
+    println!("{}     ┃{}  {}SYNTH3X v{}   TERMINAL INSTALLER{}                    {}┃{}",
         DIM, HX, NEON_CYAN, VERSION_TAG, HX, DIM, HX);
     println!("{}     ┃{}  {}Terminal-only  •  No GUI required{}               {}┃{}",
         DIM, HX, DIM, HX, DIM, HX);

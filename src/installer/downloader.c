@@ -281,7 +281,7 @@ void installer_show_download_plan(void) {
     printf("  %sThe following files will be downloaded:%s\n\n", DIM, NC);
 
     printf("  %s1.%s Gentoo Stage3 tarball (~300MB)\n", CYAN, NC);
-    printf("     %sBase system for Synth3x-Anon%s\n", DIM, NC);
+    printf("     %sBase system for Synth3x%s\n", DIM, NC);
     printf("  %s2.%s Portage package tree (~100MB)\n", CYAN, NC);
     printf("     %sPackage metadata and ebuilds%s\n", DIM, NC);
     printf("  %s3.%s Kernel (from live environment)\n", CYAN, NC);
