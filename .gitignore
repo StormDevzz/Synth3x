@@ -5,3 +5,6 @@ disk_img/
 *.o
 *.swp
 tags
+src/lib/target/
+iso/
+build/

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Synth3x-Anon — Automated Live ISO Builder
+# Synth3x — Automated Live ISO Builder
 set -e
 set +o pipefail 2>/dev/null || true
 
@@ -9,7 +9,7 @@ cd "$DIR"
 VERSION=$(cat VERSION 2>/dev/null || echo "0.8.1-Beta")
 
 echo "  ╔══════════════════════════════════════════════════════════╗"
-echo "  ║     Synth3x-Anon v${VERSION} Beta — Gentoo Hardened Build System     ║"
+echo "  ║     Synth3x v${VERSION} — Gentoo Hardened Build System     ║"
 echo "  ║     Browser | Touchpad | syn Pkg Mgr | Amnesic RAM      ║"
 echo "  ╚══════════════════════════════════════════════════════════╝"
 
@@ -139,7 +139,7 @@ cat << 'EOF' > "$INITRAMFS_DIR/usr/bin/checks-all"
 CYAN='\033[0;36m'; LIGHT_CYAN='\033[1;36m'; PURPLE='\033[0;35m'
 GREEN='\033[0;32m'; NC='\033[0m'
 echo -e "${CYAN}  ╔══════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}  ║${NC}    ${PURPLE}Synth3x-Anon Full System Check v0.8${NC}             ${CYAN}║${NC}"
+echo -e "${CYAN}  ║${NC}    ${PURPLE}Synth3x Full System Check v0.8${NC}             ${CYAN}║${NC}"
 echo -e "${CYAN}  ╚══════════════════════════════════════════════════════════╝${NC}"
 /usr/bin/check-drivers-all
 echo "---"
@@ -343,7 +343,7 @@ if command -v grub-mkrescue >/dev/null 2>&1; then
     echo "[6/6] Building ISO with grub-mkrescue..."
     grub-mkrescue -o iso/synth3x-anon.iso iso -- -volid "SYNTH3X_ANON" 2>&1 || { echo "  [✗] grub-mkrescue failed!"; exit 1; }
     echo ""
-    echo "  ── Synth3x-Anon v${VERSION} Beta ISO ready ──"
+    echo "  ── Synth3x v${VERSION} ISO ready ──"
     echo "  File: iso/synth3x-anon.iso"
     echo "  Size: $(du -h iso/synth3x-anon.iso | cut -f1)"
     echo ""

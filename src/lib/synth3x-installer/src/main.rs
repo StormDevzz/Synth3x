@@ -5,7 +5,7 @@ use std::process::Command;
 
 use synth3x_safe::VERSION_TAG;
 
-const OS_NAME: &str = "Synth3x-Anon";
+const OS_NAME: &str = "Synth3x";
 
 /// ─── ANSI color constants ───
 const HX: &str = "\x1b[0m";
