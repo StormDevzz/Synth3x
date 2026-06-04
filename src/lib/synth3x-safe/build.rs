@@ -10,6 +10,6 @@ fn main() {
         .to_string();
 
     println!("cargo:rustc-env=SYNTH3X_VERSION={}", version);
-    println!("cargo:rustc-env=SYNTH3X_VERSION_TAG={} Beta", version);
+    println!("cargo:rustc-env=SYNTH3X_VERSION_TAG={}", version);
     println!("cargo:rerun-if-changed=../../../VERSION");
 }

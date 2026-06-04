@@ -1,13 +1,15 @@
 #!/bin/bash
-# Synth3x-Anon — Automated Live ISO Builder v0.8.1 (Gentoo Profile)
+# Synth3x-Anon — Automated Live ISO Builder
 set -e
 set +o pipefail 2>/dev/null || true
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$DIR"
 
+VERSION=$(cat VERSION 2>/dev/null || echo "0.8.1-Beta")
+
 echo "  ╔══════════════════════════════════════════════════════════╗"
-echo "  ║     Synth3x-Anon v0.8.1 — Gentoo Hardened Build System     ║"
+echo "  ║     Synth3x-Anon v${VERSION} Beta — Gentoo Hardened Build System     ║"
 echo "  ║     Browser | Touchpad | syn Pkg Mgr | Amnesic RAM      ║"
 echo "  ╚══════════════════════════════════════════════════════════╝"
 
@@ -28,6 +30,7 @@ mkdir -p build
 
 echo "  -- Compiling Init with hardware detection..."
 gcc -static -march=x86-64 -mno-avx -O2 -Wall \
+    -DVERSION=\"$VERSION\" \
     -o build/init src/init/init.c src/init/splash.S src/synth3x/font.S \
     src/hardware/hw_cpuid.S src/hardware/hw_detect.c -lpthread -lrt
 echo "  ✓ Init (PID 1) with HW detection compiled"
@@ -68,8 +71,8 @@ gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/usb_analyzer src/who/usb_a
 gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/cable_analyzer src/who/cable_analyzer.c
 
 echo "  -- Compiling installer C components..."
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -DSTANDALONE -o build/synth3x-downloader src/installer/downloader.c 2>/dev/null && echo "  ✓ synth3x-downloader" || echo "  ⚠ downloader build failed"
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -DSTANDALONE -o build/synth3x-wifi src/installer/wifi_manager.c 2>/dev/null && echo "  ✓ synth3x-wifi" || echo "  ⚠ wifi_manager build failed"
+gcc -static -march=x86-64 -mno-avx -O2 -Wall -DVERSION=\"$VERSION\" -DSTANDALONE -o build/synth3x-downloader src/installer/downloader.c 2>/dev/null && echo "  ✓ synth3x-downloader" || echo "  ⚠ downloader build failed"
+gcc -static -march=x86-64 -mno-avx -O2 -Wall -DVERSION=\"$VERSION\" -DSTANDALONE -o build/synth3x-wifi src/installer/wifi_manager.c 2>/dev/null && echo "  ✓ synth3x-wifi" || echo "  ⚠ wifi_manager build failed"
 
 # 3. Create isolated initramfs structure
 echo "[3/6] Constructing RAM-only amnesic initramfs..."
@@ -340,7 +343,7 @@ if command -v grub-mkrescue >/dev/null 2>&1; then
     echo "[6/6] Building ISO with grub-mkrescue..."
     grub-mkrescue -o iso/synth3x-anon.iso iso -- -volid "SYNTH3X_ANON" 2>&1 || { echo "  [✗] grub-mkrescue failed!"; exit 1; }
     echo ""
-    echo "  ── Synth3x-Anon v0.8.1 ISO ready ──"
+    echo "  ── Synth3x-Anon v${VERSION} Beta ISO ready ──"
     echo "  File: iso/synth3x-anon.iso"
     echo "  Size: $(du -h iso/synth3x-anon.iso | cut -f1)"
     echo ""
