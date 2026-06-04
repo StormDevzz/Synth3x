@@ -4,7 +4,7 @@ DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ISO="$DIR/iso/synth3x-anon.iso"
 
 if [ ! -f "$ISO" ]; then
-    echo "ISO not found. Run 'bash scripts/build_anon_iso.sh' first."
+    echo "ISO not found. Run 'bash scripts/build_iso.sh' first."
     exit 1
 fi
 

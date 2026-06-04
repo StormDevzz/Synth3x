@@ -25,7 +25,7 @@ jobs:
           sudo apt-get install -y cpio gzip xorriso zstd xz-utils busybox-static mtools libdrm-dev
 
       - name: Build ISO
-        run: bash scripts/build_anon_iso.sh
+        run: bash scripts/build_iso.sh
 
       - name: Verify ISO exists
         id: verify_iso

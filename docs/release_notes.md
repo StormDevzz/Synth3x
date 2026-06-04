@@ -109,7 +109,7 @@ Boot from HDD is supported for both BIOS and UEFI.
 Requirements: gcc, ld, grub-mkrescue, xorriso, mtools,
               tor, nft, busybox
 
-  ./scripts/build_anon_iso.sh
+  ./scripts/build_iso.sh
 
 Run in QEMU:
   qemu-system-x86_64 -cdrom iso/synth3x-anon.iso -m 1024 -accel kvm

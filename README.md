@@ -11,7 +11,7 @@ Desktop OS written in C, Assembly, and Rust. Custom Wayland compositor with:
 ## Build
 
 ```bash
-./scripts/build_anon_iso.sh    # Full ISO with all features
+./scripts/build_iso.sh    # Full ISO with all features
 make all                       # Build all components
 make iso                       # Build ISO only
 ```

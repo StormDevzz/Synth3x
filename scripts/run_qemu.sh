@@ -10,7 +10,7 @@ DISK_PATH="build/synth3x-anon.qcow2"
 
 if [ ! -f "$ISO_PATH" ]; then
     echo "  [✗] ISO not found: $ISO_PATH"
-    echo "      Run './scripts/build_anon_iso.sh' first."
+    echo "      Run './scripts/build_iso.sh' first."
     exit 1
 fi
 
