@@ -30,9 +30,9 @@ jobs:
       - name: Verify ISO exists
         id: verify_iso
         run: |
-          if [ -f iso/synth3x-anon.iso ] && [ -s iso/synth3x-anon.iso ]; then
+          if [ -f iso/synth3x.iso ] && [ -s iso/synth3x.iso ]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "ISO size: $(du -h iso/synth3x-anon.iso | cut -f1)"
+            echo "ISO size: $(du -h iso/synth3x.iso | cut -f1)"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
             echo "ISO file not found or empty!"
@@ -42,8 +42,8 @@ jobs:
         if: steps.verify_iso.outputs.exists == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: synth3x-anon-v${{ steps.version.outputs.version }}
-          path: iso/synth3x-anon.iso
+          name: synth3x-v${{ steps.version.outputs.version }}
+          path: iso/synth3x.iso
 
       - name: Build release body
         run: cp docs/release_notes.md /tmp/release_body.md
@@ -59,17 +59,17 @@ jobs:
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release ${TAG} exists — uploading ISO..."
-            gh release upload "$TAG" iso/synth3x-anon.iso --clobber 2>&1 || true
+            gh release upload "$TAG" iso/synth3x.iso --clobber 2>&1 || true
             gh release edit "$TAG" --latest --notes-file /tmp/release_body.md 2>&1 || true
             echo "✓ ISO uploaded to existing release ${TAG}"
           else
             echo "Creating release ${TAG}..."
             gh release create "$TAG" \
-              --title "Synth3x-Anon v${V}" \
+              --title "Synth3x v${V}" \
               --notes-file /tmp/release_body.md \
               --generate-notes \
               --latest \
-              iso/synth3x-anon.iso
+              iso/synth3x.iso
             echo "✓ Release ${TAG} created with ISO attached"
           fi
 
@@ -90,10 +90,10 @@ jobs:
           STATUS="${{ job.status }}"
           if [ "$STATUS" = "success" ]; then
             TAG="[BUILD]"
-            ACTION="Build OK: Synth3x-Anon v${VERSION}"
+            ACTION="Build OK: Synth3x v${VERSION}"
           else
             TAG="[FAIL]"
-            ACTION="Build failed: Synth3x-Anon v${VERSION}"
+            ACTION="Build failed: Synth3x v${VERSION}"
           fi
 
           if [ "$STATUS" = "success" ]; then COLOR=5763719; else COLOR=15548997; fi
@@ -105,7 +105,7 @@ jobs:
             -X POST "$DISCORD_WEBHOOK" \
             -d "{
               \"embeds\": [{
-                \"title\": \"${TAG} Synth3x-Anon v${VERSION}\",
+                \"title\": \"${TAG} Synth3x v${VERSION}\",
                 \"description\": ${COMMIT_MSG_ESCAPED},
                 \"color\": ${COLOR},
                 \"fields\": [

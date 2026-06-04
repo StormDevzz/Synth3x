@@ -341,14 +341,14 @@ chmod -R 755 iso/boot/ 2>/dev/null || true
 
 if command -v grub-mkrescue >/dev/null 2>&1; then
     echo "[6/6] Building ISO with grub-mkrescue..."
-    grub-mkrescue -o iso/synth3x-anon.iso iso -- -volid "SYNTH3X_ANON" 2>&1 || { echo "  [✗] grub-mkrescue failed!"; exit 1; }
+    grub-mkrescue -o iso/synth3x.iso iso -- -volid "SYNTH3X" 2>&1 || { echo "  [✗] grub-mkrescue failed!"; exit 1; }
     echo ""
     echo "  ── Synth3x v${VERSION} ISO ready ──"
-    echo "  File: iso/synth3x-anon.iso"
-    echo "  Size: $(du -h iso/synth3x-anon.iso | cut -f1)"
+    echo "  File: iso/synth3x.iso"
+    echo "  Size: $(du -h iso/synth3x.iso | cut -f1)"
     echo ""
     echo "  Run in QEMU:"
-    echo "    qemu-system-x86_64 -cdrom iso/synth3x-anon.iso -m 1024 -accel kvm"
+    echo "    qemu-system-x86_64 -cdrom iso/synth3x.iso -m 1024 -accel kvm"
     echo ""
     echo "  Features:"
     echo "    ✓ syn package manager (syn inst/binary/list)"
