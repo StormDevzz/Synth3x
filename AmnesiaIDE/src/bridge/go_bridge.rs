@@ -63,6 +63,34 @@ impl GoBridge {
         Some(s)
     }
 
+    unsafe fn call4(
+        &self,
+        name: &[u8],
+        a1: &str,
+        a2: &str,
+        a3: &str,
+        a4: &str,
+    ) -> Option<String> {
+        let f: libloading::Symbol<
+            unsafe extern "C" fn(
+                *const c_char,
+                *const c_char,
+                *const c_char,
+                *const c_char,
+            ) -> *mut c_char,
+        > = self.lib.get(name).ok()?;
+        let c1 = CString::new(a1).ok()?;
+        let c2 = CString::new(a2).ok()?;
+        let c3 = CString::new(a3).ok()?;
+        let c4 = CString::new(a4).ok()?;
+        let p = f(c1.as_ptr(), c2.as_ptr(), c3.as_ptr(), c4.as_ptr());
+        let s = CStr::from_ptr(p).to_string_lossy().to_string();
+        if let Ok(free) = self.lib.get::<unsafe extern "C" fn(*mut c_char)>(b"gh_free") {
+            free(p);
+        }
+        Some(s)
+    }
+
     fn parse(json: &str) -> String {
         if let Ok(r) = serde_json::from_str::<GhResult>(json) {
             let mut lines = Vec::new();
@@ -146,6 +174,56 @@ impl GoBridge {
 
     pub fn pull(&self, dir: &str) -> String {
         unsafe { self.call1(b"gh_pull", dir) }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    // --- github extras ---
+    pub fn list_issues(&self, repo: &str) -> String {
+        unsafe { self.call1(b"gh_list_issues", repo) }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    pub fn list_releases(&self, repo: &str) -> String {
+        unsafe { self.call1(b"gh_list_releases", repo) }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    pub fn create_release(&self, repo: &str, tag: &str, name: &str, body: &str) -> String {
+        unsafe { self.call4(b"gh_create_release", repo, tag, name, body) }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    pub fn user_info(&self) -> String {
+        unsafe { self.call0(b"gh_user_info") }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    // --- mc ---
+    pub fn mc_ping_server(&self, address: &str) -> String {
+        unsafe { self.call1(b"mc_ping_server", address) }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    pub fn mc_player_uuid(&self, name: &str) -> String {
+        unsafe { self.call1(b"mc_player_uuid", name) }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    pub fn mc_player_name(&self, uuid: &str) -> String {
+        unsafe { self.call1(b"mc_player_name", uuid) }
+            .map(|j| Self::parse(&j))
+            .unwrap_or_else(|| "bridge error".into())
+    }
+
+    pub fn mc_mojang_status(&self) -> String {
+        unsafe { self.call0(b"mc_mojang_status") }
             .map(|j| Self::parse(&j))
             .unwrap_or_else(|| "bridge error".into())
     }

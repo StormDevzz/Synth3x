@@ -12,6 +12,9 @@ pub struct GitHubState {
     pub output: String,
     pub dns_host: String,
     pub http_url: String,
+    pub mc_address: String,
+    pub mc_player_name_input: String,
+    pub mc_uuid_input: String,
     pub bridge: Option<GoBridge>,
 }
 
@@ -25,6 +28,9 @@ impl Default for GitHubState {
             output: String::new(),
             dns_host: String::from("github.com"),
             http_url: String::new(),
+            mc_address: String::from("mc.hypixel.net"),
+            mc_player_name_input: String::new(),
+            mc_uuid_input: String::new(),
             bridge: GoBridge::load(),
         }
     }
@@ -123,7 +129,47 @@ pub fn show(app: &mut AmnesiaApp, ctx: &egui::Context) {
             });
 
             if !ws_path.is_empty() {
-                ui.separator();
+            ui.separator();
+
+            // --- Minecraft ---
+            ui.heading("Minecraft");
+            ui.horizontal(|ui| {
+                ui.label("Server:");
+                ui.text_edit_singleline(&mut app.github.mc_address);
+                if ui.button("Ping").clicked() {
+                    let addr = app.github.mc_address.clone();
+                    app.github.output = if let Some(ref b) = app.github.bridge {
+                        b.mc_ping_server(&addr)
+                    } else { "bridge not loaded".into() };
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Player:");
+                ui.text_edit_singleline(&mut app.github.mc_player_name_input);
+                if ui.button("UUID").clicked() {
+                    let name = app.github.mc_player_name_input.clone();
+                    app.github.output = if let Some(ref b) = app.github.bridge {
+                        b.mc_player_uuid(&name)
+                    } else { "bridge not loaded".into() };
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("UUID:");
+                ui.text_edit_singleline(&mut app.github.mc_uuid_input);
+                if ui.button("Name").clicked() {
+                    let uuid = app.github.mc_uuid_input.clone();
+                    app.github.output = if let Some(ref b) = app.github.bridge {
+                        b.mc_player_name(&uuid)
+                    } else { "bridge not loaded".into() };
+                }
+            });
+            if ui.button("Mojang Status").clicked() {
+                app.github.output = if let Some(ref b) = app.github.bridge {
+                    b.mc_mojang_status()
+                } else { "bridge not loaded".into() };
+            }
+
+            ui.separator();
                 ui.heading("Current Workspace");
                 if ui.button("Status").clicked() {
                     app.github.output = if let Some(ref bridge) = app.github.bridge {
