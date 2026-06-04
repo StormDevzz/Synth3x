@@ -108,15 +108,22 @@ jobs:
 
           COMMIT_MSG=$(printf '%s' "${{ github.event.head_commit.message || 'push' }}" | head -8 | jq -Rs .)
 
-          # List changed files (top 5 most important)
-          CHANGED=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null | head -8)
+          # List changed files
+          BEFORE="${{ github.event.before }}"
+          CHANGED=""
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            CHANGED=$(git diff --name-only "$BEFORE" "${{ github.sha }}" 2>/dev/null || true)
+          fi
+          if [ -z "$CHANGED" ]; then
+            CHANGED=$(git log -1 --name-only --format="" 2>/dev/null | head -8 || true)
+          fi
           FILE_LIST=""
           COUNT=0
           while IFS= read -r f; do
             [ -z "$f" ] && continue
             FILE_LIST+="\`$f\`\n"
             COUNT=$((COUNT + 1))
-          done <<< "$CHANGED"
+          done <<< "$(echo "$CHANGED" | head -8)"
           if [ "$COUNT" -gt 8 ]; then
             FILE_LIST+="… +$((COUNT - 8)) more"
           fi

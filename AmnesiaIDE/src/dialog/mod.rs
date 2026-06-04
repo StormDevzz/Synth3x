@@ -33,7 +33,6 @@ impl Lang {
 pub struct NewProjectState {
     pub visible: bool,
     pub name: String,
-    pub path: String,
     pub langs: HashSet<Lang>,
     pub init_git: bool,
     pub github_url: String,
@@ -41,16 +40,9 @@ pub struct NewProjectState {
 
 impl Default for NewProjectState {
     fn default() -> Self {
-        let home = dirs::home_dir().map(|p| p.join("Amnesia").to_string_lossy().to_string()).unwrap_or_else(|| "/tmp/Amnesia".into());
         let mut langs = HashSet::new();
         langs.insert(Lang::C);
-        Self { visible: false, name: String::new(), path: home, langs, init_git: true, github_url: String::new() }
-    }
-}
-
-mod dirs {
-    pub fn home_dir() -> Option<std::path::PathBuf> {
-        std::env::var("HOME").ok().map(std::path::PathBuf::from)
+        Self { visible: false, name: String::new(), langs, init_git: true, github_url: String::new() }
     }
 }
 
@@ -68,7 +60,7 @@ pub fn show(app: &mut AmnesiaApp, ctx: &egui::Context) {
         .resizable(false)
         .show(ctx, |ui| {
             ui.horizontal(|ui| { ui.label("Name:"); ui.text_edit_singleline(&mut app.new_project.name); });
-            ui.horizontal(|ui| { ui.label("Path:"); ui.text_edit_singleline(&mut app.new_project.path); });
+            ui.label(egui::RichText::new(format!("Location: ~/Amnesia/{}", app.new_project.name)).color(egui::Color32::from_gray(150)).size(12.0));
             ui.add_space(6.0);
             ui.label("What languages do you want to use?");
             egui::ScrollArea::vertical().max_height(160.0).show(ui, |ui| {
@@ -92,13 +84,8 @@ pub fn show(app: &mut AmnesiaApp, ctx: &egui::Context) {
             ui.horizontal(|ui| {
                 if ui.button("Create Project").clicked() {
                     let name = app.new_project.name.trim().to_owned();
-                    let base = app.new_project.path.trim().to_owned();
                     if !name.is_empty() && !app.new_project.langs.is_empty() {
-                        let dir = if base.is_empty() {
-                            format!("{}/{}", app.home, name)
-                        } else {
-                            format!("{}/{}", base, name)
-                        };
+                        let dir = format!("{}/{}", app.home, name);
                         let langs: Vec<Lang> = app.new_project.langs.iter().copied().collect();
                         scaffold::create(&dir, &name, &langs, app.new_project.init_git, &app.new_project.github_url);
                         app.open_workspace(&dir);
