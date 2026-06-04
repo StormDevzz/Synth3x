@@ -1,4 +1,4 @@
-/* Synth3x OS v0.8.1 — Installer File Downloader (C)
+/* Synth3x-Anon — Installer File Downloader (C)
  * Downloads essential files for installation: Stage3, GRUB modules,
  * kernel, Portage snapshots, and packages.
  * Uses curl/wget with fallback, SHA256 verification, and progress display.
@@ -291,7 +291,7 @@ void installer_show_download_plan(void) {
 #ifdef STANDALONE
 int main(int argc, char *argv[]) {
     printf("\n  %s═══════════════════════════════════════════════════%s\n", PURPLE, NC);
-    printf("  %s  Synth3x Installer — File Downloader v0.8.1%s\n", CYAN, NC);
+    printf("  %s  Synth3x Installer — File Downloader v%s%s\n", CYAN, VERSION, NC);
     printf("  %s═══════════════════════════════════════════════════%s\n\n", PURPLE, NC);
 
     installer_show_download_plan();

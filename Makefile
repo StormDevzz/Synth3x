@@ -1,7 +1,8 @@
-# Synth3x OS v0.8.1 — Makefile (Wayland Compositor + DRM/KMS + Rust safe proc)
+# Synth3x-Anon — Makefile
 ASM      = as
 CC64     = gcc
-CFLAGS   = -march=x86-64 -mno-avx -O2 -Wall -Wextra -I src/kernel -I src/lib -I src/compositor -I src/installer -I/usr/include/libdrm -I/usr/include/drm
+VERSION  := $(shell cat VERSION 2>/dev/null || echo "0.8.1")
+CFLAGS   = -march=x86-64 -mno-avx -O2 -Wall -Wextra -DVERSION=\"$(VERSION)\" -I src/kernel -I src/lib -I src/compositor -I src/installer -I/usr/include/libdrm -I/usr/include/drm
 LDFLAGS  = -lpthread -lrt -lm -ldrm
 
 BUILD    = build
@@ -26,7 +27,7 @@ INSTALLER_FASTSCAN = $(BUILD)/synth3x-fastscan
 
 .PHONY: all clean iso run rust
 
-all: $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_BINS) $(INSTALLER_DOWNLOADER) $(INSTALLER_WIFI) rust $(INSTALLER_FASTSCAN)
+all: $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_BINS) $(INSTALLER_DOWNLOADER) $(INSTALLER_WIFI) rust $(INSTALLER_FASTSCAN) boot/grub.cfg
 
 # ─── Compositor (Wayland + DRM/KMS + AmnesiaDE shell) ───
 COMPOSITOR_SRC = \
@@ -49,7 +50,7 @@ INIT_HW  = src/hardware/hw_cpuid.S src/hardware/hw_detect.c
 
 $(INIT): $(INIT_SRC) $(INIT_HW)
 	@mkdir -p $(BUILD)
-	$(CC64) -static -O2 -Wall -mno-avx -mno-avx2 -o $@ $(INIT_SRC) $(INIT_HW) -lpthread -lrt
+	$(CC64) -static -O2 -Wall -mno-avx -mno-avx2 -DVERSION=\"$(VERSION)\" -o $@ $(INIT_SRC) $(INIT_HW) -lpthread -lrt
 	@echo "  ── Init (PID 1): $@"
 
 # ─── Package Manager (syn) ───
@@ -95,12 +96,12 @@ $(BUILD)/commands/shutdown: src/commands/shutdown.c
 # ─── Installer C components ───
 $(INSTALLER_DOWNLOADER): src/installer/downloader.c
 	@mkdir -p $(BUILD)
-	$(CC64) -static -march=x86-64 -mno-avx -O2 -Wall -DSTANDALONE -o $@ $< -lpthread
+	$(CC64) -static -march=x86-64 -mno-avx -O2 -Wall -DVERSION=\"$(VERSION)\" -DSTANDALONE -o $@ $< -lpthread
 	@echo "  ── Installer downloader: $@"
 
 $(INSTALLER_WIFI): src/installer/wifi_manager.c
 	@mkdir -p $(BUILD)
-	$(CC64) -static -march=x86-64 -mno-avx -O2 -Wall -DSTANDALONE -o $@ $< -lpthread
+	$(CC64) -static -march=x86-64 -mno-avx -O2 -Wall -DVERSION=\"$(VERSION)\" -DSTANDALONE -o $@ $< -lpthread
 	@echo "  ── Installer WiFi manager: $@"
 
 # ─── ASM fast scanner (statically linked, no libc) ───
@@ -190,7 +191,8 @@ $(INITRAMFS): $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_B
 	
 	# Synth3x scripts (emerge wrapper, help, etc.)
 	@cp src/scripts/emerge-wrapper.sh $(BUILD)/initramfs/usr/bin/emerge 2>/dev/null || true
-	@cp src/scripts/synth3x-help.sh $(BUILD)/initramfs/usr/bin/synth3x-help 2>/dev/null || true
+	@sed 's/@VERSION@/$(VERSION)/g' src/scripts/synth3x-help.sh > $(BUILD)/initramfs/usr/bin/synth3x-help 2>/dev/null || true
+	@chmod +x $(BUILD)/initramfs/usr/bin/synth3x-help 2>/dev/null || true
 	
 	# Shared libs for dynamically-linked binaries
 	@mkdir -p $(BUILD)/initramfs/lib64 $(BUILD)/initramfs/lib
@@ -211,8 +213,16 @@ $(INITRAMFS): $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_B
 	@rm -rf $(BUILD)/initramfs
 	@echo "  ── Initramfs: $(INITRAMFS)"
 
+# ─── Generated files from VERSION ───
+boot/grub.cfg: boot/grub.cfg.in VERSION
+	@sed 's/@VERSION@/$(VERSION)/g' $< > $@
+	@echo "  ── Generated: $@"
+
+.PHONY: gen-version
+gen-version: boot/grub.cfg
+
 # ─── ISO ───
-iso: $(INITRAMFS)
+iso: $(INITRAMFS) boot/grub.cfg
 	@echo "  ── Building ISO..."
 	@mkdir -p iso/boot/grub
 	@cp /boot/vmlinuz-linux iso/boot/vmlinuz-linux 2>/dev/null || \

@@ -1,4 +1,4 @@
-/* Synth3x-Anon v0.8.1 — init (PID 1) — Console Boot
+/* Synth3x-Anon — init (PID 1) — Console Boot
  * Mounts filesystems, detects hardware, randomizes identity,
  * loads modules, then drops to interactive bash shell.
  */
@@ -177,7 +177,7 @@ int main(int argc, char *argv[]) {
 
     /* ─── Boot banner ─── */
     vga_write("\n");
-    vga_write(" Synth3x Console v0.8.1\n");
+    vga_write(" Synth3x Console v" VERSION "\n");
     vga_write("══════════════════════════════════════════════════════════\n");
 
     /* ─── Mount filesystems ─── */
@@ -267,7 +267,7 @@ int main(int argc, char *argv[]) {
     /* ─── Welcome screen ─── */
     vga_write("\033[2J\033[H");
     vga_write("\n══════════════════════════════════════════════════════════\n");
-    vga_write("          SYNTH3X CONSOLE  v0.8.1\n");
+    vga_write("          SYNTH3X CONSOLE  v" VERSION "\n");
     vga_write("══════════════════════════════════════════════════════════\n\n");
     vga_write(" * Start Installation:\n");
     vga_write("   # synth3x-installer\n\n");

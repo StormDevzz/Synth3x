@@ -1,4 +1,4 @@
-/* Synth3x OS v0.8.1 — Installer WiFi Manager (C)
+/* Synth3x-Anon — Installer WiFi Manager (C)
  * Handles WiFi network scanning, connecting, and disconnecting.
  * Uses wpa_supplicant or iwctl depending on what's available.
  * Runs as a helper called by the Rust installer.
@@ -291,7 +291,7 @@ int wifi_check_connection(void) {
 #ifdef STANDALONE
 int main(int argc, char *argv[]) {
     printf("\n  %s═══════════════════════════════════════════════════%s\n", PURPLE, NC);
-    printf("  %s  Synth3x Installer — WiFi Manager v0.8.1%s\n", CYAN, NC);
+    printf("  %s  Synth3x Installer — WiFi Manager v%s%s\n", CYAN, VERSION, NC);
     printf("  %s═══════════════════════════════════════════════════%s\n\n", PURPLE, NC);
 
     if (argc < 2) {

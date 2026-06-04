@@ -2,7 +2,7 @@
 # Synth3x Console — Help & Commands
 echo ""
 echo " ══════════════════════════════════════════════════════════"
-echo "   SYNTH3X CONSOLE v0.8.1 — COMMAND REFERENCE"
+echo "   SYNTH3X CONSOLE v@VERSION@ — COMMAND REFERENCE"
 echo " ══════════════════════════════════════════════════════════"
 echo ""
 echo "  INSTALLATION:"
