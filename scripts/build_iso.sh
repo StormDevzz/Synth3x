@@ -270,7 +270,7 @@ if [ -n "$KVER" ]; then
     MODDIR="/lib/modules/$KVER"
     [ ! -d "$MODDIR" ] && MODDIR="/usr/lib/modules/$KVER"
     echo "    Kernel modules: $MODDIR"
-    for mod in bochs virtio-gpu virtio_dma_buf ttm serio_raw psmouse mousedev virtio_input; do
+    for mod in bochs virtio-gpu virtio_dma_buf ttm serio_raw psmouse mousedev virtio_input virtio_net virtio virtio_ring virtio_pci; do
         src=$(find "$MODDIR" -name "${mod}.ko*" -type f 2>/dev/null | head -1)
         if [ -n "$src" ]; then
             case "$src" in

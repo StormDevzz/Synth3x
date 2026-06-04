@@ -134,6 +134,9 @@ $(INITRAMFS): $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_B
 	@mkdir -p $(BUILD)/initramfs/var/cache/syn
 	@mkdir -p $(BUILD)/initramfs/usr/local/bin
 	@mkdir -p $(BUILD)/initramfs/lib/modules
+	@for mod in virtio_net virtio virtio_ring virtio_pci; do \
+		path=$$(find /lib/modules/$(shell uname -r) -name "$${mod}.ko*" 2>/dev/null | head -1); \
+		[ -n "$$path" ] && cp -n "$$path" $(BUILD)/initramfs/lib/modules/ 2>/dev/null || true; done 2>/dev/null || true
 	@cp $(INIT) $(BUILD)/initramfs/init
 	@cp $(COMPOSITOR) $(BUILD)/initramfs/usr/bin/synth3x
 	@cp $(SYN_CMD) $(BUILD)/initramfs/usr/bin/syn

@@ -227,53 +227,87 @@ fn detect_wifi_iface() -> Option<String> {
     if name.is_empty() { None } else { Some(name) }
 }
 
-/// ─── DHCP on all non-lo interfaces ───
-fn dhcp_all() {
+/// ─── Load network drivers, bring interfaces up, run DHCP ───
+fn bring_up_network() {
+    // Load network drivers
+    Command::new("sh").args(["-c",
+        "modprobe virtio_net 2>/dev/null; \
+         modprobe virtio 2>/dev/null; \
+         modprobe virtio_ring 2>/dev/null; \
+         modprobe virtio_pci 2>/dev/null; \
+         modprobe e1000 2>/dev/null; \
+         modprobe e100 2>/dev/null; \
+         modprobe r8169 2>/dev/null; \
+         sleep 1"]).status().ok();
+
+    // Bring all non-lo interfaces up and run DHCP
     Command::new("sh").args(["-c",
         "for iface in /sys/class/net/*; do \
            name=$(basename $iface); \
            [ \"$name\" = \"lo\" ] && continue; \
+           ip link set $name up 2>/dev/null; \
            dhcpcd -q $name 2>/dev/null || udhcpc -i $name -b -q 2>/dev/null; \
          done"]).status().ok();
 }
 
+/// ─── Show network interfaces status ───
+fn show_network_status() {
+    let out = Command::new("sh")
+        .args(["-c", "ip addr show 2>/dev/null | grep -E '^[0-9]:|inet ' | head -20"])
+        .output().ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default();
+    if !out.is_empty() {
+        println!("     {}Interfaces:{}", DIM, HX);
+        for line in out.lines() {
+            println!("      {}", line.trim());
+        }
+    }
+}
+
 /// ─── Network setup (Ethernet auto, WiFi on demand, blocks) ───
 fn setup_wifi() {
-    // Step 1: check internet (init already runs DHCP at boot)
+    println!("     {}Network setup...{}", NEON_CYAN, HX);
+
+    // Step 1: load drivers and bring up network
+    bring_up_network();
+    std::thread::sleep(std::time::Duration::from_secs(2));
+
+    // Step 2: check internet
     if check_internet() {
         println!("     {}✓ Internet OK{}", NEON_GREEN, HX);
         return;
     }
 
-    // Step 2: run DHCP on all interfaces, wait 3s
+    // Step 3: show interface status and retry DHCP
     println!("     {}Waiting for DHCP...{}", NEON_CYAN, HX);
-    dhcp_all();
-    std::thread::sleep(std::time::Duration::from_secs(3));
+    show_network_status();
+    bring_up_network();
+    std::thread::sleep(std::time::Duration::from_secs(4));
 
     if check_internet() {
         println!("     {}✓ Internet OK (DHCP){}", NEON_GREEN, HX);
         return;
     }
 
-    // Step 3: if no WiFi hardware, give up
+    // Step 4: if no WiFi hardware, loop with DHCP
     let wifi_iface = detect_wifi_iface();
     if wifi_iface.is_none() {
-        println!("     {}✗ No internet and no WiFi hardware found.{}", NEON_RED, HX);
-        println!("     {}  Check cable or add WiFi adapter. Retrying...{}", DIM, HX);
-        std::thread::sleep(std::time::Duration::from_secs(5));
-        if check_internet() {
-            println!("     {}✓ Internet OK{}", NEON_GREEN, HX);
-            return;
-        }
+        println!("     {}No internet and no WiFi hardware found.{}", NEON_RED, HX);
+        println!("     {}  Retrying network...{}", DIM, HX);
         loop {
-            dhcp_all();
+            bring_up_network();
             std::thread::sleep(std::time::Duration::from_secs(3));
-            if check_internet() { println!("     {}✓ Internet OK{}", NEON_GREEN, HX); return; }
-            println!("     {}  Retrying DHCP...{}", DIM, HX);
+            if check_internet() {
+                println!("     {}✓ Internet OK{}", NEON_GREEN, HX);
+                return;
+            }
+            show_network_status();
+            println!("     {}  Retrying... (check cable or WiFi adapter){}", DIM, HX);
         }
     }
 
-    // Step 4: WiFi hardware found — interactive connect
+    // Step 5: WiFi hardware found
     let iface = wifi_iface.unwrap();
     println!("     {}WiFi: {}{}", NEON_GREEN, iface, HX);
 
@@ -339,6 +373,7 @@ fn setup_wifi() {
             return;
         }
         println!("\r     {}✗ Failed{}", NEON_RED, HX);
+        show_network_status();
         show_hint("Check name and password, or use Ethernet.");
     }
 }
