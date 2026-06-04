@@ -231,8 +231,8 @@ iso: $(INITRAMFS) boot/grub.cfg
 	@cp $(INITRAMFS) iso/boot/initrd.img 2>/dev/null || true
 	@cp boot/grub.cfg iso/boot/grub/ 2>/dev/null || true
 	@if command -v grub-mkrescue >/dev/null 2>&1; then \
-		grub-mkrescue -o iso/synth3x-os.iso iso 2>/dev/null; \
-		echo "  ── ISO: iso/synth3x-os.iso"; \
+		grub-mkrescue -o iso/synth3x.iso iso 2>/dev/null; \
+		echo "  ── ISO: iso/synth3x.iso"; \
 	else \
 		echo "  ── grub-mkrescue not found"; \
 	fi
