@@ -89,11 +89,12 @@ pub fn workspace(app: &mut AmnesiaApp, ctx: &egui::Context) {
                     let entries: Vec<_> = app.ws.as_ref().map(|ws| ws.files.clone()).unwrap_or_default();
                     for f in &entries {
                         let indent = "  ".repeat(f.depth as usize);
-                        let icon = if f.is_dir { "📁" } else { "📄" };
+                        let icon = if f.is_dir { "📁" } else { file_icon(&f.name) };
                         let f_path = f.path.clone();
                         let label = format!("{}{} {}", indent, icon, f.name);
                         let resp = ui.add_sized([ui.available_width(), 20.0],
-                            egui::Label::new(egui::RichText::new(&label).size(13.0)));
+                            egui::Label::new(egui::RichText::new(&label).size(13.0))
+                                .sense(egui::Sense::click()));
                         if resp.clicked() && !f.is_dir { app.open_file(&f_path); }
                     }
                 });
@@ -132,6 +133,29 @@ pub fn workspace(app: &mut AmnesiaApp, ctx: &egui::Context) {
         }
         if i.consume_key(egui::Modifiers::NONE, egui::Key::F5) { app.compile_run(); }
     });
+}
+
+fn file_icon(name: &str) -> &'static str {
+    if let Some(ext) = name.rsplit('.').next() {
+        match ext {
+            "rs" => "🦀",
+            "c" | "h" => "⚡",
+            "cpp" | "cc" | "cxx" | "hpp" | "hxx" => "⚡",
+            "cs" => "🔷",
+            "asm" | "s" | "S" => "⚙",
+            "py" => "🐍",
+            "js" | "ts" => "⬡",
+            "html" | "htm" => "🌐",
+            "css" | "scss" => "🎨",
+            "md" | "txt" => "📄",
+            "toml" | "json" | "yaml" | "yml" => "📋",
+            "png" | "jpg" | "jpeg" | "gif" | "svg" => "🖼",
+            "lock" | "gitignore" => "🔒",
+            _ => "📄",
+        }
+    } else {
+        "📄"
+    }
 }
 
 fn dialogs(app: &mut AmnesiaApp, ctx: &egui::Context) {
