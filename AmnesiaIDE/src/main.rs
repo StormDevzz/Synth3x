@@ -1,4 +1,6 @@
 mod editor;
+mod terminal;
+mod file;
 mod syntax;
 
 fn main() -> Result<(), eframe::Error> {
