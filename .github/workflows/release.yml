@@ -65,7 +65,7 @@ jobs:
           else
             echo "Creating release ${TAG}..."
             gh release create "$TAG" \
-              --title "Synth3x v${V}" \
+              --title "Synth3x" \
               --notes-file /tmp/release_body.md \
               --generate-notes \
               --latest \
@@ -97,9 +97,14 @@ jobs:
             TAG="BUILD OK"
             COLOR=5763719
           else
-            EMOJI="❌"
             TAG="BUILD FAIL"
             COLOR=15548997
+          fi
+
+          if [ -n "$VERSION" ]; then
+            TITLE="${TAG}: Synth3x v${VERSION}"
+          else
+            TITLE="${TAG}: Synth3x"
           fi
 
           COMMIT_MSG=$(printf '%s' "${{ github.event.head_commit.message || 'push' }}" | head -8 | jq -Rs .)
@@ -126,7 +131,7 @@ jobs:
                 "icon_url": "${AUTHOR_AVATAR}",
                 "url": "https://github.com/${AUTHOR_USERNAME}"
               },
-              "title": "${EMOJI} ${TAG}: Synth3x v${VERSION}",
+              "title": "${EMOJI} ${TITLE}",
               "description": ${COMMIT_MSG},
               "color": ${COLOR},
               "fields": [

@@ -1,4 +1,4 @@
-# Synth3x-Anon OS
+# Synth3x
 
 **Gentoo Hardened Desktop** — Wayland, Tor, full-disk encryption, terminal installer.
 
@@ -21,7 +21,7 @@ Build a full ISO:
 
 ---
 
-## Desktop (AmnesiaDE)
+## Desktop
 
 Custom Wayland compositor with DRM/KMS — no X11.
 
@@ -82,8 +82,8 @@ Built-in apps: Terminal, Browser, SysInfo, 8-page Guide.
 
 | Entry | Description |
 |-------|-------------|
-| Synth3x-Anon (AmnesiaDE) | Graphical desktop |
-| Synth3x-Anon Installer | Installer environment |
+| Synth3x (Desktop) | Graphical desktop |
+| Synth3x Installer | Installer environment |
 | Reboot | Restart |
 | Shutdown | Power off |
 
