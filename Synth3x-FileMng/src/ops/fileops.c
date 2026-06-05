@@ -22,7 +22,7 @@ static void cp_or_mv(const char *title, gboolean is_copy) {
 
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         char *dest_dir = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-        char dest[4096], cmd[4608];
+        char dest[sizeof(state.cwd) + 256], cmd[4608];
         snprintf(dest, sizeof(dest), "%s/%s", dest_dir, name);
         snprintf(cmd, sizeof(cmd), "%s -r '%s' '%s'", act, src, dest);
         if (system(cmd) == 0)
@@ -71,7 +71,7 @@ void file_rename(void) {
 
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         const char *newname = gtk_entry_get_text(GTK_ENTRY(entry));
-        char newp[4096];
+        char newp[sizeof(state.cwd) + 256];
         snprintf(newp, sizeof(newp), "%s/%s", state.cwd, newname);
         if (rename(src, newp) == 0) update_status("renamed to %s", newname);
         else update_status("rename failed");
@@ -94,7 +94,7 @@ void file_mkdir(void) {
     if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
         const char *name = gtk_entry_get_text(GTK_ENTRY(entry));
         if (name && name[0]) {
-            char path[4096];
+            char path[sizeof(state.cwd) + 256];
             snprintf(path, sizeof(path), "%s/%s", state.cwd, name);
             if (mkdir(path, 0755) == 0) update_status("folder created");
             else update_status("mkdir failed");

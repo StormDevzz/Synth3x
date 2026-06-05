@@ -16,6 +16,7 @@ pub fn ensure_home() -> String {
     p
 }
 
+#[allow(dead_code)]
 pub fn ensure_dir(path: &str) -> Result<(), String> {
     std::fs::create_dir_all(path).map_err(|e| e.to_string())
 }

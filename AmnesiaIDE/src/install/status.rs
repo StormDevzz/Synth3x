@@ -1,10 +1,11 @@
 #[derive(Clone)]
 pub enum Status {
     NotFound,
-    Found { version: String },
+    Found { #[allow(dead_code)] version: String },
     Error(String),
 }
 
+#[allow(dead_code)]
 impl Status {
     pub fn label(&self) -> &str {
         match self {

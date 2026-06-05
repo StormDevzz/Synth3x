@@ -17,6 +17,7 @@ impl IconSet {
         self.map.get(ext).or(self.default.as_ref())
     }
 
+    #[allow(dead_code)]
     pub fn has_icons(&self) -> bool {
         !self.map.is_empty() || self.dir.is_some() || self.default.is_some()
     }

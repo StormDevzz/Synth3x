@@ -3,6 +3,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct GhResult {
+    #[allow(dead_code)]
     ok: bool,
     out: String,
     err: Option<String>,

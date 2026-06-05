@@ -1,3 +1,4 @@
+#[allow(dead_code)]
 pub fn template(ext: &str) -> &'static str {
     match ext {
         "c"    => "#include <stdio.h>\n\nint main() {\n    printf(\"hello\\n\");\n    return 0;\n}\n",

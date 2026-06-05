@@ -1,6 +1,7 @@
 use crate::creations::dirs;
 use crate::creations::templates;
 
+#[allow(dead_code)]
 pub fn new_file(path: &str) -> Result<String, String> {
     if std::fs::metadata(path).is_ok() { return Err("Already exists".into()); }
     let ext = path.rsplit('.').next().unwrap_or("");
@@ -22,6 +23,7 @@ pub fn rename_file(old: &str, new: &str) -> Result<(), String> {
     std::fs::rename(old, new).map_err(|e| e.to_string())
 }
 
+#[allow(dead_code)]
 pub fn new_dir(path: &str) -> Result<(), String> {
     dirs::ensure_dir(path)
 }

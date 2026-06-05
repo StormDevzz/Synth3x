@@ -1,11 +1,13 @@
 use eframe::egui;
 
+#[allow(dead_code)]
 pub struct Picker {
     pub visible: bool,
     pub path: String,
     pub title: &'static str,
 }
 
+#[allow(dead_code)]
 impl Picker {
     pub fn new(title: &'static str) -> Self {
         Picker { visible: true, path: String::new(), title }

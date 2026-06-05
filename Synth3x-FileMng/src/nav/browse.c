@@ -1,7 +1,7 @@
 #include "../fm.h"
 
 static char* fmt_size(off_t size) {
-    static char buf[16];
+    static char buf[32];
     if (size < 1024)
         snprintf(buf, sizeof(buf), "%ld B", (long)size);
     else if (size < 1024 * 1024)
@@ -43,8 +43,9 @@ void load_directory(void) {
     while ((de = readdir(d)) != NULL) {
         if (strcmp(de->d_name, ".") == 0) continue;
 
-        char full[4096];
-        snprintf(full, sizeof(full), "%s/%s", state.cwd, de->d_name);
+        char full[sizeof(state.cwd) + 256];
+        int n = snprintf(full, sizeof(full), "%s/%s", state.cwd, de->d_name);
+        if (n < 0 || (size_t)n >= sizeof(full)) continue;
 
         gboolean is_dir = FALSE;
         off_t size = 0;
@@ -84,14 +85,14 @@ void go_up(void) {
 
 void go_home(void) {
     const char *home = g_get_home_dir();
-    if (home) { strncpy(state.cwd, home, sizeof(state.cwd) - 1); load_directory(); }
+    if (home) { snprintf(state.cwd, sizeof(state.cwd), "%s", home); load_directory(); }
 }
 
 void go_path(const char *path) {
     if (!path || !path[0]) return;
     char resolved[4096];
     if (realpath(path, resolved)) {
-        strncpy(state.cwd, resolved, sizeof(state.cwd) - 1);
+        snprintf(state.cwd, sizeof(state.cwd), "%s", resolved);
         load_directory();
     } else {
         update_status("invalid path: %s", path);
@@ -122,7 +123,7 @@ void open_selected(void) {
         gboolean is_dir = FALSE;
         gtk_tree_model_get(model, &iter, COL_NAME, &name, COL_IS_DIR, &is_dir, COL_PATH, &full, -1);
         if (is_dir && full) {
-            strncpy(state.cwd, full, sizeof(state.cwd) - 1);
+            snprintf(state.cwd, sizeof(state.cwd), "%s", full);
             load_directory();
         } else if (full) {
             gtk_show_uri_on_window(GTK_WINDOW(state.window),

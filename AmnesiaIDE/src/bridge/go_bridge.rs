@@ -63,6 +63,7 @@ impl GoBridge {
         Some(s)
     }
 
+    #[allow(dead_code)]
     unsafe fn call4(
         &self,
         name: &[u8],
@@ -179,24 +180,28 @@ impl GoBridge {
     }
 
     // --- github extras ---
+    #[allow(dead_code)]
     pub fn list_issues(&self, repo: &str) -> String {
         unsafe { self.call1(b"gh_list_issues", repo) }
             .map(|j| Self::parse(&j))
             .unwrap_or_else(|| "bridge error".into())
     }
 
+    #[allow(dead_code)]
     pub fn list_releases(&self, repo: &str) -> String {
         unsafe { self.call1(b"gh_list_releases", repo) }
             .map(|j| Self::parse(&j))
             .unwrap_or_else(|| "bridge error".into())
     }
 
+    #[allow(dead_code)]
     pub fn create_release(&self, repo: &str, tag: &str, name: &str, body: &str) -> String {
         unsafe { self.call4(b"gh_create_release", repo, tag, name, body) }
             .map(|j| Self::parse(&j))
             .unwrap_or_else(|| "bridge error".into())
     }
 
+    #[allow(dead_code)]
     pub fn user_info(&self) -> String {
         unsafe { self.call0(b"gh_user_info") }
             .map(|j| Self::parse(&j))

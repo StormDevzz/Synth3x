@@ -32,7 +32,7 @@ void drop_files(const char *uri_list) {
         if (!local) { g_free(uris[i]); continue; }
         const char *name = strrchr(local, '/');
         name = name ? name + 1 : local;
-        char dest[4096], cmd[4608];
+        char dest[sizeof(state.cwd) + 256], cmd[4608];
         snprintf(dest, sizeof(dest), "%s/%s", state.cwd, name);
         snprintf(cmd, sizeof(cmd), "mv '%s' '%s'", local, dest);
         if (system(cmd) == 0) moved++;
