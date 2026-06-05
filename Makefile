@@ -36,6 +36,7 @@ COMPOSITOR_SRC = \
 	src/compositor/input.c \
 	src/compositor/wl_server.c \
 	src/compositor/shell.c \
+	src/compositor/protocols.c \
 	src/compositor/render.S \
 	src/compositor/font.S
 

@@ -6,6 +6,7 @@
  */
 
 #include "compositor.h"
+#include "protocols.h"
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
@@ -66,6 +67,35 @@ static const wl_interface_t iface_wl_subcompositor = {
     "wl_subcompositor", 1, 2, 0
 };
 
+/* ─── New protocol interface descriptors ─── */
+const wl_interface_t iface_xdg_wm_base = {
+    "xdg_wm_base", 6, 4, 1
+};
+const wl_interface_t iface_xdg_positioner = {
+    "xdg_positioner", 6, 11, 0
+};
+const wl_interface_t iface_xdg_surface = {
+    "xdg_surface", 6, 5, 1
+};
+const wl_interface_t iface_xdg_toplevel = {
+    "xdg_toplevel", 6, 14, 4
+};
+const wl_interface_t iface_xdg_popup = {
+    "xdg_popup", 6, 3, 3
+};
+const wl_interface_t iface_zwlr_layer_shell = {
+    "zwlr_layer_shell_v1", 5, 2, 0
+};
+const wl_interface_t iface_zwlr_layer_surface = {
+    "zwlr_layer_surface_v1", 5, 9, 2
+};
+const wl_interface_t iface_zxdg_decoration_manager = {
+    "zxdg_decoration_manager_v1", 1, 2, 0
+};
+const wl_interface_t iface_zxdg_toplevel_decoration = {
+    "zxdg_toplevel_decoration_v1", 1, 3, 1
+};
+
 /* ─── Helper: send Wayland message ─── */
 void wl_send_event(wl_client_t *client, uint32_t id, uint32_t opcode,
                    const void *data, uint32_t len) {
@@ -116,7 +146,7 @@ static wl_object_t *client_find_object(wl_client_t *client, uint32_t id) {
     return NULL;
 }
 
-static wl_object_t *client_add_object(wl_client_t *client, uint32_t id,
+wl_object_t *client_add_object(wl_client_t *client, uint32_t id,
                                        const wl_interface_t *iface,
                                        void *impl) {
     if (client->obj_count >= 64) return NULL;
@@ -128,17 +158,9 @@ static wl_object_t *client_add_object(wl_client_t *client, uint32_t id,
     return obj;
 }
 
-/* ─── Argument reader ─── */
-typedef struct {
-    const uint8_t *data;
-    uint32_t size;
-    uint32_t pos;
-    int fds[8];
-    int fd_count;
-    int fd_pos;
-} arg_reader_t;
+/* ─── Argument reader implementations ─── */
 
-static void arg_read_init(arg_reader_t *r, const void *data, uint32_t size) {
+void arg_read_init(arg_reader_t *r, const void *data, uint32_t size) {
     r->data = (const uint8_t *)data;
     r->size = size;
     r->pos = 0;
@@ -146,23 +168,22 @@ static void arg_read_init(arg_reader_t *r, const void *data, uint32_t size) {
     r->fd_pos = 0;
 }
 
-static void arg_read_int(arg_reader_t *r, int32_t *val) {
+void arg_read_int(arg_reader_t *r, int32_t *val) {
     if (r->pos + 4 > r->size) { *val = 0; return; }
     memcpy(val, r->data + r->pos, 4);
     r->pos += 4;
 }
 
-static void arg_read_uint(arg_reader_t *r, uint32_t *val) {
+void arg_read_uint(arg_reader_t *r, uint32_t *val) {
     int32_t v;
     arg_read_int(r, &v);
     *val = (uint32_t)v;
 }
 
-static void arg_read_string(arg_reader_t *r, char *buf, int max_len) {
+void arg_read_string(arg_reader_t *r, char *buf, int max_len) {
     if (r->pos + 4 > r->size) { buf[0] = 0; return; }
     uint32_t slen;
     memcpy(&slen, r->data + r->pos, 4);
-    /* Align string length to 4 bytes */
     uint32_t aligned = (slen + 3) & ~3;
     if (r->pos + 4 + aligned > r->size || slen >= (uint32_t)max_len) {
         buf[0] = 0;
@@ -174,15 +195,15 @@ static void arg_read_string(arg_reader_t *r, char *buf, int max_len) {
     r->pos += 4 + aligned;
 }
 
-static void arg_read_object(arg_reader_t *r, uint32_t *id) {
+void arg_read_object(arg_reader_t *r, uint32_t *id) {
     arg_read_uint(r, id);
 }
 
-static void arg_read_new_id(arg_reader_t *r, uint32_t *id) {
+void arg_read_new_id(arg_reader_t *r, uint32_t *id) {
     arg_read_uint(r, id);
 }
 
-static int arg_read_fd(arg_reader_t *r) {
+int arg_read_fd(arg_reader_t *r) {
     if (r->fd_pos >= r->fd_count) return -1;
     return r->fds[r->fd_pos++];
 }
@@ -244,6 +265,24 @@ static void handle_display_get_registry(wl_client_t *client, arg_reader_t *r) {
     ev.version = 3;
     strcpy(ev.name, "wl_data_device_manager");
     wl_send_event(client, id, WL_REGISTRY_GLOBAL, &ev, sizeof(ev));
+    
+    /* xdg_wm_base */
+    ev.id = XDG_WM_BASE_ID;
+    ev.version = 6;
+    strcpy(ev.name, "xdg_wm_base");
+    wl_send_event(client, id, WL_REGISTRY_GLOBAL, &ev, sizeof(ev));
+    
+    /* zwlr_layer_shell_v1 */
+    ev.id = ZWLR_LAYER_SHELL_ID;
+    ev.version = 5;
+    strcpy(ev.name, "zwlr_layer_shell_v1");
+    wl_send_event(client, id, WL_REGISTRY_GLOBAL, &ev, sizeof(ev));
+    
+    /* zxdg_decoration_manager_v1 */
+    ev.id = ZXDG_DECORATION_MGR_ID;
+    ev.version = 1;
+    strcpy(ev.name, "zxdg_decoration_manager_v1");
+    wl_send_event(client, id, WL_REGISTRY_GLOBAL, &ev, sizeof(ev));
 }
 
 static void handle_display_sync(wl_client_t *client, arg_reader_t *r) {
@@ -288,6 +327,12 @@ static void handle_registry_bind(wl_client_t *client, arg_reader_t *r) {
         client_add_object(client, id, &iface_wl_subcompositor, NULL);
     } else if (name == 13) {
         client_add_object(client, id, &iface_wl_data_device, NULL);
+    } else if (name == XDG_WM_BASE_ID && strcmp(iface_name, "xdg_wm_base") == 0) {
+        client_add_object(client, id, &iface_xdg_wm_base, NULL);
+    } else if (name == ZWLR_LAYER_SHELL_ID && strcmp(iface_name, "zwlr_layer_shell_v1") == 0) {
+        client_add_object(client, id, &iface_zwlr_layer_shell, NULL);
+    } else if (name == ZXDG_DECORATION_MGR_ID && strcmp(iface_name, "zxdg_decoration_manager_v1") == 0) {
+        client_add_object(client, id, &iface_zxdg_decoration_manager, NULL);
     }
 }
 
@@ -687,6 +732,12 @@ static void dispatch_message(wl_client_t *client, wl_msg_header_t *hdr,
     
     if (handlers && hdr->opcode < handler_count && handlers[hdr->opcode]) {
         handlers[hdr->opcode](client, &r);
+        return;
+    }
+    
+    /* Try protocol handlers (xdg-shell, layer-shell, decoration) */
+    if (!handlers && protocols_dispatch(client, obj, hdr->opcode, &r)) {
+        return;
     }
 }
 
@@ -833,12 +884,13 @@ void wl_server_poll(compositor_t *c) {
     wl_client_t *client = c->clients;
     while (client) {
         if (client->fd < 0) {
-            /* Remove disconnected client */
-            wl_client_t *to_free = client;
-            if (prev) prev->next = client->next;
-            else c->clients = client->next;
-            client = client->next;
-            free(to_free);
+    /* Remove disconnected client */
+    wl_client_t *to_free = client;
+    protocols_cleanup_client(c, client);
+    if (prev) prev->next = client->next;
+    else c->clients = client->next;
+    client = client->next;
+    free(to_free);
             continue;
         }
         

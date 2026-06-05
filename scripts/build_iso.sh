@@ -50,12 +50,21 @@ echo "[2/6] Compiling custom PID 1 init & Synth3x DE..."
 make clean 2>/dev/null || true
 mkdir -p build
 
-echo "  -- Compiling Init with hardware detection..."
+echo "  -- Compiling syninit (PID 1) ..."
 gcc $BASE_FLAGS \
     -DVERSION=\"$VERSION\" \
-    -o build/init src/init/init.c src/init/splash.S src/synth3x/font.S \
-    src/hardware/hw_cpuid.S src/hardware/hw_detect.c -lpthread -lrt
-echo "  ✓ Init (PID 1) with HW detection compiled"
+    -o build/syninit src/init/init.c src/init/boot.S \
+    -lpthread -lrt
+echo "  ✓ syninit (PID 1) compiled"
+
+echo "  -- Building synit-svc (Rust service manager) ..."
+if command -v cargo >/dev/null 2>&1; then
+    cargo build --release --manifest-path src/init/svc/Cargo.toml 2>&1 || true
+    cp src/init/svc/target/release/synit-svc build/synit-svc 2>/dev/null || true
+    echo "  ✓ synit-svc (Rust)"
+else
+    echo "  ⚠ cargo not found, synit-svc skipped"
+fi
 
 echo "  -- Compiling Synth3x Wayland compositor..."
 gcc $DYN_FLAGS \
@@ -113,7 +122,7 @@ ln -sf usr/lib "$INITRAMFS_DIR/lib"
 ln -sf usr/lib "$INITRAMFS_DIR/lib64"
 
 # Copy our compiled custom software
-cp build/init "$INITRAMFS_DIR/init"
+cp build/syninit "$INITRAMFS_DIR/init"
 cp build/synth3x "$INITRAMFS_DIR/usr/bin/synth3x"
 cp build/syn "$INITRAMFS_DIR/usr/bin/syn"
 ln -sf syn "$INITRAMFS_DIR/usr/bin/emerge"
