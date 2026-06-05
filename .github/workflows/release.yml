@@ -88,46 +88,53 @@ jobs:
           fi
 
           STATUS="${{ job.status }}"
+          REPO="${{ github.repository }}"
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          SHA7="${GITHUB_SHA::7}"
           AUTHOR_NAME="${{ github.event.head_commit.author.name || github.actor }}"
           AUTHOR_USERNAME="${{ github.event.head_commit.author.username || github.actor }}"
           AUTHOR_AVATAR="https://github.com/${AUTHOR_USERNAME}.png?size=64"
 
           if [ "$STATUS" = "success" ]; then
-            TAG="BUILD OK"
+            TAG="Passed"
             COLOR=5763719
           else
-            TAG="BUILD FAIL"
+            TAG="Failed"
             COLOR=15548997
           fi
 
+          TITLE="Build ${TAG}: ${REPO}"
           if [ -n "$VERSION" ]; then
-            TITLE="${TAG}: Synth3x v${VERSION}"
-          else
-            TITLE="${TAG}: Synth3x"
+            TITLE="${TITLE} v${VERSION}"
           fi
 
-          COMMIT_MSG=$(printf '%s' "${{ github.event.head_commit.message || 'push' }}" | head -8 | jq -Rs .)
+          COMMIT_MSG=$(printf '%s' "${{ github.event.head_commit.message || 'push' }}" | head -4 | jq -Rs .)
 
-          # List changed files
+          # Build changed files list
           BEFORE="${{ github.event.before }}"
           CHANGED=""
           if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
             CHANGED=$(git diff --name-only "$BEFORE" "${{ github.sha }}" 2>/dev/null || true)
           fi
           if [ -z "$CHANGED" ]; then
-            CHANGED=$(git log -1 --name-only --format="" 2>/dev/null | head -8 || true)
+            CHANGED=$(git log -1 --name-only --format="" 2>/dev/null | head -6 || true)
           fi
-          FILE_LIST=""
-          COUNT=0
+
+          FILE_LINES=""
+          FCOUNT=0
           while IFS= read -r f; do
             [ -z "$f" ] && continue
-            FILE_LIST+="\`$f\`\n"
-            COUNT=$((COUNT + 1))
-          done <<< "$(echo "$CHANGED" | head -8)"
-          if [ "$COUNT" -gt 8 ]; then
-            FILE_LIST+="… +$((COUNT - 8)) more"
+            FILE_LINES+="\`$f\`\n"
+            FCOUNT=$((FCOUNT + 1))
+          done <<< "$(echo "$CHANGED" | head -6)"
+          TC=$FCOUNT
+          if [ "$FCOUNT" -gt 6 ]; then
+            FILE_LINES+="\`… +$((FCOUNT - 6)) more\`"
           fi
-          [ -z "$FILE_LIST" ] && FILE_LIST="*no file changes*"
+
+          FILES_VALUE="${FILE_LINES:-*none*}"
+          CHANGE_LABEL="Changed"
+          [ "$TC" -eq 1 ] && CHANGE_LABEL="Changed 1 file" || CHANGE_LABEL="Changed ${TC} files"
 
           PAYLOAD=$(cat << ENDJSON
           {
@@ -141,12 +148,13 @@ jobs:
               "description": ${COMMIT_MSG},
               "color": ${COLOR},
               "fields": [
-                {"name": "Build", "value": "${STATUS}", "inline": true},
-                {"name": "Commit", "value": "[${GITHUB_SHA::7}](${COMMIT_URL})", "inline": true},
-                {"name": "Key files", "value": "${FILE_LIST}", "inline": false}
+                {"name": "Status", "value": "${TAG}", "inline": true},
+                {"name": "Branch", "value": "${BRANCH}", "inline": true},
+                {"name": "Commit", "value": "[${SHA7}](${COMMIT_URL})", "inline": true},
+                {"name": "${CHANGE_LABEL}", "value": "${FILES_VALUE}", "inline": false}
               ],
               "footer": {
-                "text": "Synth3x CI · ${TAG}",
+                "text": "${REPO} · ${BRANCH} · ${SHA7}",
                 "icon_url": "https://github.githubassets.com/favicons/favicon-dark.png"
               },
               "url": "${RUN_URL}",
