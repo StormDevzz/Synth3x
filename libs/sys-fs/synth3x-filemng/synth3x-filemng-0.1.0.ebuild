@@ -18,10 +18,10 @@ DEPEND="
 RDEPEND="${DEPEND}"
 
 src_compile() {
-	emake -C Synth3x-FileMng
+	emake -C prog/Synth3x-FileMng
 }
 
 src_install() {
-	dobin Synth3x-FileMng/fileman
-	doman Synth3x-FileMng/man/fileman.1 2>/dev/null || true
+	dobin prog/Synth3x-FileMng/fileman
+	doman prog/Synth3x-FileMng/man/fileman.1 2>/dev/null || true
 }

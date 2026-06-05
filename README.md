@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://i.imgur.com/aw5D7My.png" alt="S3n">
+</p>
+
 # Synth3x
 
 **Gentoo Hardened Desktop** — Wayland, Tor, full-disk encryption, terminal installer.

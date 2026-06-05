@@ -2,7 +2,7 @@ CC      = gcc
 CFLAGS  = -Wall -Wextra -O2 -std=c99 -D_GNU_SOURCE $(shell pkg-config --cflags gtk+-3.0)
 LDLIBS  = $(shell pkg-config --libs gtk+-3.0)
 
-SRCS    = src/main.c src/nav/browse.c src/ops/fileops.c src/ops/extras.c src/anim/anim.c src/checks/terminal.c src/checks/cpucheck.c src/checks/netcheck.c
+SRCS    = src/main.c src/nav/browse.c src/ops/fileops.c src/ops/extras.c src/anim/anim.c src/checks/terminal.c src/checks/cpucheck.c src/checks/netcheck.c src/checks/laptop.c
 ASMS    = src/checks/cpuid.S src/checks/netasm.S
 OBJS    = $(SRCS:.c=.o) $(ASMS:.S=.o)
 TARGET  = fileman

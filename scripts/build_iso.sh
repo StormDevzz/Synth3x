@@ -26,22 +26,23 @@ done
 # Auto-detect CPU flags using cpucheck
 echo "  -- Detecting CPU capabilities for compiler flags..."
 CPU_FLAGS=""
-if [ -f Synth3x-FileMng/src/checks/cpucheck.c ]; then
-    if gcc -DSTANDALONE -I Synth3x-FileMng/src/checks -o /tmp/cpucheck \
-        Synth3x-FileMng/src/checks/cpucheck.c \
-        Synth3x-FileMng/src/checks/cpuid.S \
+if [ -f prog/Synth3x-FileMng/src/checks/cpucheck.c ]; then
+    if gcc -DSTANDALONE -I prog/Synth3x-FileMng/src/checks -o /tmp/cpucheck \
+        prog/Synth3x-FileMng/src/checks/cpucheck.c \
+        prog/Synth3x-FileMng/src/checks/cpuid.S \
         -lpthread 2>/dev/null; then
         CPU_FLAGS=$(/tmp/cpucheck 2>/dev/null || true)
         rm -f /tmp/cpucheck
     fi
 fi
 if [ -z "$CPU_FLAGS" ]; then
-    CPU_FLAGS="-march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2"
-    echo "  ✓ cpucheck binary not available, using safe defaults"
+    CPU_FLAGS="-march=x86-64 -mtune=generic"
 fi
+# Force Penryn-compatible flags — target is Pentium T4400, no AVX/SSE4
+CPU_FLAGS="$CPU_FLAGS -mno-avx -mno-sse4.1 -mno-sse4.2"
     echo "  ✓ CPU flags: $CPU_FLAGS"
 export CPU_FLAGS
-export BASE_FLAGS="-static $CPU_FLAGS -O2 -Wall"
+export BASE_FLAGS="$CPU_FLAGS -O2 -Wall"
 export DYN_FLAGS="$CPU_FLAGS -O2 -Wall"
 
 # 2. Build kernel helper elements & userspace
@@ -208,6 +209,13 @@ fi
 cd "$INITRAMFS_DIR"
 ln -sf busybox bin/sh
 ./bin/busybox --install -s bin/ 2>/dev/null || true
+# Fix absolute symlinks — busybox --install creates them pointing to host path
+find bin/ sbin/ usr/bin/ usr/sbin/ -type l -lname '*' | while read -r link; do
+    tgt=$(readlink "$link")
+    case "$tgt" in
+        /*) ln -sf busybox "$link" 2>/dev/null || true ;;
+    esac
+done
 
 # Copy compiled custom commands
 rm -f bin/reboot bin/shutdown bin/poweroff
@@ -257,6 +265,7 @@ if [ -d "/usr/lib/grub/x86_64-efi" ]; then
     cp -a "/usr/lib/grub/x86_64-efi" "$INITRAMFS_DIR/usr/lib/grub/"
 fi
 
+copy_deps "$DIR/build/init" "$INITRAMFS_DIR"
 copy_deps "$TOR_BIN" "$INITRAMFS_DIR"
 copy_deps "$NFT_BIN" "$INITRAMFS_DIR"
 copy_deps "$INITRAMFS_DIR/usr/bin/synth3x" "$INITRAMFS_DIR"
