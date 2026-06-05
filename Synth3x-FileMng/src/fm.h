@@ -52,6 +52,7 @@ void file_rename(void);
 void file_mkdir(void);
 void show_properties(void);
 void drop_files(const char *uri_list);
+void open_terminal(void);
 
 void init_animations(void);
 void toggle_animations(void);

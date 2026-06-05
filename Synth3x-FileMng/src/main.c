@@ -18,6 +18,7 @@ static void on_context_move(void);
 static void on_context_delete(void);
 static void on_context_rename(void);
 static void on_context_properties(void);
+static void on_context_terminal(void);
 static void on_sidebar_activate(GtkListBox *b, GtkListBoxRow *r);
 static void show_context_menu(GdkEventButton *ev);
 
@@ -70,6 +71,10 @@ static void on_activate(GtkApplication *app, gpointer data) {
     btn = gtk_button_new_with_label("Refresh");
     gtk_box_pack_start(GTK_BOX(toolbar), btn, FALSE, FALSE, 2);
     g_signal_connect(btn, "clicked", G_CALLBACK(load_directory), NULL);
+
+    btn = gtk_button_new_with_label("Terminal");
+    gtk_box_pack_start(GTK_BOX(toolbar), btn, FALSE, FALSE, 2);
+    g_signal_connect(btn, "clicked", G_CALLBACK(open_terminal), NULL);
 
     GtkWidget *sep = gtk_separator_new(GTK_ORIENTATION_VERTICAL);
     gtk_box_pack_start(GTK_BOX(toolbar), sep, FALSE, FALSE, 4);
@@ -179,7 +184,10 @@ static void on_activate(GtkApplication *app, gpointer data) {
 
     state.status_label = gtk_label_new("");
     gtk_label_set_xalign(GTK_LABEL(state.status_label), 0.0);
-    gtk_container_set_border_width(GTK_CONTAINER(state.status_label), 3);
+    gtk_widget_set_margin_start(state.status_label, 6);
+    gtk_widget_set_margin_end(state.status_label, 6);
+    gtk_widget_set_margin_top(state.status_label, 3);
+    gtk_widget_set_margin_bottom(state.status_label, 3);
     gtk_box_pack_start(GTK_BOX(hbox), state.status_label, TRUE, TRUE, 0);
 
     init_animations();
@@ -205,6 +213,7 @@ static gboolean on_key_press(GtkWidget *w, GdkEventKey *ev) {
     if ((ev->state & GDK_CONTROL_MASK) && ev->keyval == GDK_KEY_x) { file_move(); return TRUE; }
     if ((ev->state & GDK_CONTROL_MASK) && ev->keyval == GDK_KEY_n) { file_mkdir(); return TRUE; }
     if ((ev->state & GDK_CONTROL_MASK) && ev->keyval == GDK_KEY_l) { path_go_to(); return TRUE; }
+    if ((ev->state & GDK_CONTROL_MASK) && ev->keyval == GDK_KEY_t) { open_terminal(); return TRUE; }
     return FALSE;
 }
 
@@ -257,6 +266,10 @@ static void show_context_menu(GdkEventButton *ev) {
     item = gtk_separator_menu_item_new();
     gtk_menu_shell_append(GTK_MENU_SHELL(context_menu), item);
 
+    item = gtk_menu_item_new_with_label("Open in Terminal");
+    g_signal_connect(item, "activate", G_CALLBACK(on_context_terminal), NULL);
+    gtk_menu_shell_append(GTK_MENU_SHELL(context_menu), item);
+
     item = gtk_menu_item_new_with_label("Properties");
     g_signal_connect(item, "activate", G_CALLBACK(on_context_properties), NULL);
     gtk_menu_shell_append(GTK_MENU_SHELL(context_menu), item);
@@ -271,6 +284,7 @@ static void on_context_move(void)       { file_move(); }
 static void on_context_delete(void)     { file_delete(); }
 static void on_context_rename(void)     { file_rename(); }
 static void on_context_properties(void) { show_properties(); }
+static void on_context_terminal(void)  { open_terminal(); }
 static void on_sidebar_activate(GtkListBox *b, GtkListBoxRow *r) {
     (void)b;
     GtkWidget *l = gtk_bin_get_child(GTK_BIN(r));
