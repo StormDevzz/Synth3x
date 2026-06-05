@@ -1,37 +1,5 @@
 #include "../fm.h"
 
-void open_terminal(void) {
-    const char *terms[] = {
-        "gnome-terminal", "konsole", "xfce4-terminal",
-        "alacritty", "kitty", "xterm", NULL
-    };
-    const char *term = NULL;
-    for (int i = 0; terms[i]; i++) {
-        char path[256];
-        snprintf(path, sizeof(path), "/usr/bin/%s", terms[i]);
-        if (access(path, X_OK) == 0) { term = terms[i]; break; }
-    }
-    if (!term) { update_status("no terminal found"); return; }
-
-    char cmd[4608];
-    if (strcmp(term, "gnome-terminal") == 0)
-        snprintf(cmd, sizeof(cmd), "gnome-terminal --working-directory='%s'", state.cwd);
-    else if (strcmp(term, "konsole") == 0)
-        snprintf(cmd, sizeof(cmd), "konsole --workdir '%s'", state.cwd);
-    else if (strcmp(term, "xfce4-terminal") == 0)
-        snprintf(cmd, sizeof(cmd), "xfce4-terminal --working-directory='%s'", state.cwd);
-    else if (strcmp(term, "alacritty") == 0)
-        snprintf(cmd, sizeof(cmd), "alacritty --working-directory '%s' &", state.cwd);
-    else if (strcmp(term, "kitty") == 0)
-        snprintf(cmd, sizeof(cmd), "kitty --directory '%s' &", state.cwd);
-    else if (strcmp(term, "xterm") == 0)
-        snprintf(cmd, sizeof(cmd), "xterm -e 'cd \"%s\" && exec bash' &", state.cwd);
-
-    if (system(cmd) == 0 && strcmp(term, "xterm") != 0)
-        update_status("terminal opened: %s", term);
-    else
-        update_status("opened %s", term);
-}
 void show_properties(void) {
     char *path = get_selected_path();
     if (!path) { update_status("no file selected"); return; }
