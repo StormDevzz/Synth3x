@@ -37,12 +37,18 @@ void go_up(void);
 void go_home(void);
 void go_path(const char *path);
 void open_selected(void);
+void select_file_by_name(const char *name);
+
+char* get_selected_path(void);
+char* get_selected_name(void);
 
 void file_copy(void);
 void file_move(void);
 void file_delete(void);
 void file_rename(void);
 void file_mkdir(void);
+void show_properties(void);
+void drop_files(const char *uri_list);
 
 void update_status(const char *fmt, ...);
 

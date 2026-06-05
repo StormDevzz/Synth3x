@@ -11,7 +11,7 @@ static gboolean confirm_action(const char *msg, const char *detail) {
     return res == GTK_RESPONSE_YES;
 }
 
-static char* get_selected_path(void) {
+char* get_selected_path(void) {
     GtkTreeSelection *sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(state.list_view));
     GtkTreeModel *model;
     GtkTreeIter iter;
@@ -22,7 +22,7 @@ static char* get_selected_path(void) {
     return path;
 }
 
-static char* get_selected_name(void) {
+char* get_selected_name(void) {
     GtkTreeSelection *sel = gtk_tree_view_get_selection(GTK_TREE_VIEW(state.list_view));
     GtkTreeModel *model;
     GtkTreeIter iter;
@@ -161,6 +161,76 @@ void file_mkdir(void) {
         }
     }
     gtk_widget_destroy(dialog);
+}
+
+void show_properties(void) {
+    char *path = get_selected_path();
+    if (!path) { update_status("no file selected"); return; }
+
+    struct stat st;
+    if (lstat(path, &st) != 0) {
+        update_status("cannot stat file");
+        g_free(path);
+        return;
+    }
+
+    char *uri = g_filename_to_uri(path, NULL, NULL);
+    char info[1024];
+    snprintf(info, sizeof(info),
+        "Size: %ld bytes\n"
+        "Mode: %o\n"
+        "UID: %d  GID: %d\n"
+        "Links: %ld\n"
+        "Modified: %s",
+        (long)st.st_size,
+        (unsigned)st.st_mode & 0777,
+        st.st_uid, st.st_gid,
+        (long)st.st_nlink,
+        ctime(&st.st_mtime));
+
+    GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(state.window),
+        GTK_DIALOG_MODAL, GTK_MESSAGE_INFO, GTK_BUTTONS_OK,
+        "%s", path);
+    gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog), "%s", info);
+    gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+
+    g_free(uri);
+    g_free(path);
+}
+
+void drop_files(const char *uri_list) {
+    if (!uri_list || !uri_list[0]) return;
+
+    char **uris = g_uri_list_extract_uris(uri_list);
+    if (!uris) return;
+
+    int moved = 0;
+    for (int i = 0; uris[i]; i++) {
+        char *local = g_filename_from_uri(uris[i], NULL, NULL);
+        if (!local) { g_free(uris[i]); continue; }
+
+        char dest[4096];
+        const char *name = strrchr(local, '/');
+        name = name ? name + 1 : local;
+        snprintf(dest, sizeof(dest), "%s/%s", state.cwd, name);
+
+        char cmd[4608];
+        snprintf(cmd, sizeof(cmd), "mv '%s' '%s'", local, dest);
+        if (system(cmd) == 0)
+            moved++;
+        else {
+            update_status("move failed for %s", name);
+        }
+        g_free(local);
+        g_free(uris[i]);
+    }
+    g_free(uris);
+
+    if (moved > 0) {
+        update_status("moved %d file(s) to %s", moved, state.cwd);
+        load_directory();
+    }
 }
 
 void update_status(const char *fmt, ...) {
