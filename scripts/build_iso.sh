@@ -23,20 +23,41 @@ for cmd in gcc ld grub-mkrescue xorriso mtools tor nft busybox; do
     fi
 done
 
+# Auto-detect CPU flags using cpucheck
+echo "  -- Detecting CPU capabilities for compiler flags..."
+CPU_FLAGS=""
+if [ -f Synth3x-FileMng/src/checks/cpucheck.c ]; then
+    if gcc -DSTANDALONE -I Synth3x-FileMng/src/checks -o /tmp/cpucheck \
+        Synth3x-FileMng/src/checks/cpucheck.c \
+        Synth3x-FileMng/src/checks/cpuid.S \
+        -lpthread 2>/dev/null; then
+        CPU_FLAGS=$(/tmp/cpucheck 2>/dev/null || true)
+        rm -f /tmp/cpucheck
+    fi
+fi
+if [ -z "$CPU_FLAGS" ]; then
+    CPU_FLAGS="-march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2"
+    echo "  ✓ cpucheck binary not available, using safe defaults"
+fi
+    echo "  ✓ CPU flags: $CPU_FLAGS"
+export CPU_FLAGS
+export BASE_FLAGS="-static $CPU_FLAGS -O2 -Wall"
+export DYN_FLAGS="$CPU_FLAGS -O2 -Wall"
+
 # 2. Build kernel helper elements & userspace
 echo "[2/6] Compiling custom PID 1 init & Synth3x DE..."
 make clean 2>/dev/null || true
 mkdir -p build
 
 echo "  -- Compiling Init with hardware detection..."
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall \
+gcc $BASE_FLAGS \
     -DVERSION=\"$VERSION\" \
     -o build/init src/init/init.c src/init/splash.S src/synth3x/font.S \
     src/hardware/hw_cpuid.S src/hardware/hw_detect.c -lpthread -lrt
 echo "  ✓ Init (PID 1) with HW detection compiled"
 
 echo "  -- Compiling Synth3x Wayland compositor..."
-gcc -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall \
+gcc $DYN_FLAGS \
     -I src/compositor -I/usr/include/libdrm -I/usr/include/drm \
     -o build/synth3x src/compositor/main.c src/compositor/drm.c \
     src/compositor/input.c src/compositor/wl_server.c \
@@ -46,33 +67,33 @@ echo "  ✓ Synth3x Wayland compositor compiled"
 
 echo "  -- Compiling driver check tools..."
 mkdir -p build/checks
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/checks/check_sound    src/checks/check_sound.c 2>/dev/null
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/checks/check_keyboard src/checks/check_keyboard.c 2>/dev/null
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/checks/check_mouse    src/checks/check_mouse.c 2>/dev/null
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/checks/check_display  src/checks/check_display.c 2>/dev/null
+gcc $BASE_FLAGS -o build/checks/check_sound    src/checks/check_sound.c 2>/dev/null
+gcc $BASE_FLAGS -o build/checks/check_keyboard src/checks/check_keyboard.c 2>/dev/null
+gcc $BASE_FLAGS -o build/checks/check_mouse    src/checks/check_mouse.c 2>/dev/null
+gcc $BASE_FLAGS -o build/checks/check_display  src/checks/check_display.c 2>/dev/null
 for ch in check_sound check_keyboard check_mouse check_display; do
     [ -f "build/checks/$ch" ] && echo "  ✓ $ch" || echo "  ⚠ $ch build failed"
 done
 
 echo "  -- Compiling custom native commands..."
 mkdir -p build/commands
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -o build/commands/reboot src/commands/reboot.c
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -o build/commands/shutdown src/commands/shutdown.c
+gcc $BASE_FLAGS -o build/commands/reboot src/commands/reboot.c
+gcc $BASE_FLAGS -o build/commands/shutdown src/commands/shutdown.c
 
 echo "  -- Compiling syn package manager..."
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/syn src/commands/syn.c
+gcc $BASE_FLAGS -o build/syn src/commands/syn.c
 echo "  ✓ syn package manager compiled"
 
 echo "  -- Compiling C hardware analyzers..."
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/ram_analyzer src/who/ram_analyzer.c
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/disk_analyzer src/who/disk_analyzer.c
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/device_names src/who/device_names.c
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/usb_analyzer src/who/usb_analyzer.c
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/cable_analyzer src/who/cable_analyzer.c
+gcc $BASE_FLAGS -o build/ram_analyzer src/who/ram_analyzer.c
+gcc $BASE_FLAGS -o build/disk_analyzer src/who/disk_analyzer.c
+gcc $BASE_FLAGS -o build/device_names src/who/device_names.c
+gcc $BASE_FLAGS -o build/usb_analyzer src/who/usb_analyzer.c
+gcc $BASE_FLAGS -o build/cable_analyzer src/who/cable_analyzer.c
 
 echo "  -- Compiling installer C components..."
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -DVERSION=\"$VERSION\" -DSTANDALONE -o build/synth3x-downloader src/installer/downloader.c 2>/dev/null && echo "  ✓ synth3x-downloader" || echo "  ⚠ downloader build failed"
-gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -DVERSION=\"$VERSION\" -DSTANDALONE -o build/synth3x-wifi src/installer/wifi_manager.c 2>/dev/null && echo "  ✓ synth3x-wifi" || echo "  ⚠ wifi_manager build failed"
+gcc $BASE_FLAGS -DVERSION=\"$VERSION\" -DSTANDALONE -o build/synth3x-downloader src/installer/downloader.c 2>/dev/null && echo "  ✓ synth3x-downloader" || echo "  ⚠ downloader build failed"
+gcc $BASE_FLAGS -DVERSION=\"$VERSION\" -DSTANDALONE -o build/synth3x-wifi src/installer/wifi_manager.c 2>/dev/null && echo "  ✓ synth3x-wifi" || echo "  ⚠ wifi_manager build failed"
 
 # 3. Create isolated initramfs structure
 echo "[3/6] Constructing RAM-only amnesic initramfs..."
