@@ -1,7 +1,13 @@
 #ifndef WORDS_H
 #define WORDS_H
 
-static const char *word_list[] = {
+#include <cstring>
+#include <cstdlib>
+#include <algorithm>
+
+#define WORD_COUNT 100
+
+static const char *word_list[WORD_COUNT] = {
     "cat", "dog", "sun", "run", "big", "red", "hat", "cup", "box", "pen",
     "fish", "bird", "tree", "book", "hand", "door", "star", "ball", "bell", "duck",
     "house", "horse", "water", "chair", "table", "phone", "clock", "music", "bread", "fruit",
@@ -12,11 +18,11 @@ static const char *word_list[] = {
     "laboratory", "mechanical", "naturally", "operation", "passenger", "beautiful", "dangerous",
     "experience", "challenge", "knowledge", "brilliant", "fantastic", "champion",
     "extraordinary", "unbelievable", "unforgettable", "revolution", "photography",
+    "zero", "jazz", "kiwi", "moon", "fire", "snow", "lake", "wind",
+    "swift", "pixel", "forge", "glow", "echo", "dawn",
+    "cyber", "neon", "void", "core",
+    "freedom",
 };
-
-static const int WORD_COUNT = sizeof(word_list) / sizeof(word_list[0]);
-static const int MIN_WORD_LEN = 3;
-static const int MAX_WORD_LEN = 14;
 
 struct WordEntry {
     const char *text;
@@ -24,16 +30,36 @@ struct WordEntry {
     float time_sec;
 };
 
-inline WordEntry get_word(int index) {
-    WordEntry we;
-    we.text = word_list[index % WORD_COUNT];
-    we.len = strlen(we.text);
-    float t = we.len - MIN_WORD_LEN;
-    float range = MAX_WORD_LEN - MIN_WORD_LEN;
-    we.time_sec = 4.0f + (t / range) * 6.0f;
-    if (we.time_sec < 4.0f) we.time_sec = 4.0f;
-    if (we.time_sec > 10.0f) we.time_sec = 10.0f;
-    return we;
-}
+class WordPicker {
+public:
+    WordPicker() : pos(0) {
+        for (int i = 0; i < WORD_COUNT; i++)
+            order[i] = i;
+    }
+
+    WordEntry next() {
+        if (pos >= WORD_COUNT) {
+            /* Reshuffle when exhausted */
+            for (int i = WORD_COUNT - 1; i > 0; i--) {
+                int j = rand() % (i + 1);
+                std::swap(order[i], order[j]);
+            }
+            pos = 0;
+        }
+        int idx = order[pos++];
+        WordEntry we;
+        we.text = word_list[idx];
+        we.len = strlen(we.text);
+        float t = (float)(we.len - 3) / 11.0f;
+        we.time_sec = 4.0f + t * 6.0f;
+        if (we.time_sec < 4.0f) we.time_sec = 4.0f;
+        if (we.time_sec > 10.0f) we.time_sec = 10.0f;
+        return we;
+    }
+
+private:
+    int order[WORD_COUNT];
+    int pos;
+};
 
 #endif
