@@ -46,7 +46,7 @@ $(COMPOSITOR): $(COMPOSITOR_SRC)
 	@echo "  ── Compositor (Wayland): $@"
 
 # ─── Init (PID 1, userspace) ───
-INIT_SRC = src/init/init.c src/init/splash.S src/compositor/font.S
+INIT_SRC = src/init/init.c src/init/boot.S src/compositor/font.S
 INIT_HW  = src/hardware/hw_cpuid.S src/hardware/hw_detect.c
 
 $(INIT): $(INIT_SRC) $(INIT_HW)
@@ -135,7 +135,7 @@ amnesia-ide:
 # ─── Initramfs ───
 INITRAMFS = $(BUILD)/initrd.img
 ISO_KVER = 6.18.33-2-cachyos-lts
-$(INITRAMFS): $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_BINS) $(INSTALLER_DOWNLOADER) $(INSTALLER_WIFI) $(RUST_INSTALLER)
+$(INITRAMFS): $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_BINS) $(INSTALLER_DOWNLOADER) $(INSTALLER_WIFI) $(RUST_INSTALLER) $(INSTALLER_FASTSCAN)
 	@echo "  ── Building initramfs..."
 	@rm -rf $(BUILD)/initramfs
 	@mkdir -p $(BUILD)/initramfs/bin $(BUILD)/initramfs/sbin
@@ -361,8 +361,8 @@ KERNEL ?= $(shell test -f /usr/lib/modules/$(ISO_KVER)/vmlinuz && echo /usr/lib/
 
 run: $(INITRAMFS)
 	qemu-system-x86_64 -kernel $(KERNEL) -initrd $(INITRAMFS) \
-		-m 1024 -accel kvm -vga virtio -device virtio-tablet \
-		-net nic,model=virtio -net user -soundhw hda \
+		-m 1024 -accel kvm -cpu host -vga virtio -device virtio-tablet \
+		-net nic,model=virtio -net user \
 		-append "loglevel=3 console=tty0"
 
 run-iso: iso
