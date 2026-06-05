@@ -202,6 +202,7 @@ int main(int argc, char *argv[]) {
         snprintf(hw_buf, sizeof(hw_buf), "   Model: %s\n", dmi_product);
         vga_write(hw_buf);
     }
+    vga_write(hw_is_vm() ? "   Environment: Virtual Machine\n" : "   Environment: Physical Hardware\n");
     vga_write(hw_has_touchpad() ? "   Touchpad: detected\n" : "   Touchpad: not detected\n");
     vga_write(hw_is_laptop() ? "   Chassis: Laptop\n" : "   Chassis: Desktop\n");
     vga_write(" * Loading hardware modules ...\n");

@@ -29,14 +29,14 @@ make clean 2>/dev/null || true
 mkdir -p build
 
 echo "  -- Compiling Init with hardware detection..."
-gcc -static -march=x86-64 -mno-avx -O2 -Wall \
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall \
     -DVERSION=\"$VERSION\" \
     -o build/init src/init/init.c src/init/splash.S src/synth3x/font.S \
     src/hardware/hw_cpuid.S src/hardware/hw_detect.c -lpthread -lrt
 echo "  ✓ Init (PID 1) with HW detection compiled"
 
 echo "  -- Compiling Synth3x Wayland compositor..."
-gcc -march=x86-64 -mno-avx -O2 -Wall \
+gcc -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall \
     -I src/compositor -I/usr/include/libdrm -I/usr/include/drm \
     -o build/synth3x src/compositor/main.c src/compositor/drm.c \
     src/compositor/input.c src/compositor/wl_server.c \
@@ -46,33 +46,33 @@ echo "  ✓ Synth3x Wayland compositor compiled"
 
 echo "  -- Compiling driver check tools..."
 mkdir -p build/checks
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/checks/check_sound    src/checks/check_sound.c 2>/dev/null
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/checks/check_keyboard src/checks/check_keyboard.c 2>/dev/null
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/checks/check_mouse    src/checks/check_mouse.c 2>/dev/null
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/checks/check_display  src/checks/check_display.c 2>/dev/null
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/checks/check_sound    src/checks/check_sound.c 2>/dev/null
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/checks/check_keyboard src/checks/check_keyboard.c 2>/dev/null
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/checks/check_mouse    src/checks/check_mouse.c 2>/dev/null
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/checks/check_display  src/checks/check_display.c 2>/dev/null
 for ch in check_sound check_keyboard check_mouse check_display; do
     [ -f "build/checks/$ch" ] && echo "  ✓ $ch" || echo "  ⚠ $ch build failed"
 done
 
 echo "  -- Compiling custom native commands..."
 mkdir -p build/commands
-gcc -static -march=x86-64 -mno-avx -O2 -o build/commands/reboot src/commands/reboot.c
-gcc -static -march=x86-64 -mno-avx -O2 -o build/commands/shutdown src/commands/shutdown.c
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -o build/commands/reboot src/commands/reboot.c
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -o build/commands/shutdown src/commands/shutdown.c
 
 echo "  -- Compiling syn package manager..."
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/syn src/commands/syn.c
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/syn src/commands/syn.c
 echo "  ✓ syn package manager compiled"
 
 echo "  -- Compiling C hardware analyzers..."
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/ram_analyzer src/who/ram_analyzer.c
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/disk_analyzer src/who/disk_analyzer.c
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/device_names src/who/device_names.c
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/usb_analyzer src/who/usb_analyzer.c
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -o build/cable_analyzer src/who/cable_analyzer.c
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/ram_analyzer src/who/ram_analyzer.c
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/disk_analyzer src/who/disk_analyzer.c
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/device_names src/who/device_names.c
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/usb_analyzer src/who/usb_analyzer.c
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -o build/cable_analyzer src/who/cable_analyzer.c
 
 echo "  -- Compiling installer C components..."
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -DVERSION=\"$VERSION\" -DSTANDALONE -o build/synth3x-downloader src/installer/downloader.c 2>/dev/null && echo "  ✓ synth3x-downloader" || echo "  ⚠ downloader build failed"
-gcc -static -march=x86-64 -mno-avx -O2 -Wall -DVERSION=\"$VERSION\" -DSTANDALONE -o build/synth3x-wifi src/installer/wifi_manager.c 2>/dev/null && echo "  ✓ synth3x-wifi" || echo "  ⚠ wifi_manager build failed"
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -DVERSION=\"$VERSION\" -DSTANDALONE -o build/synth3x-downloader src/installer/downloader.c 2>/dev/null && echo "  ✓ synth3x-downloader" || echo "  ⚠ downloader build failed"
+gcc -static -march=x86-64 -mtune=generic -mno-avx -mno-sse4.1 -mno-sse4.2 -O2 -Wall -DVERSION=\"$VERSION\" -DSTANDALONE -o build/synth3x-wifi src/installer/wifi_manager.c 2>/dev/null && echo "  ✓ synth3x-wifi" || echo "  ⚠ wifi_manager build failed"
 
 # 3. Create isolated initramfs structure
 echo "[3/6] Constructing RAM-only amnesic initramfs..."
@@ -273,7 +273,13 @@ fi
         MODDST="$INITRAMFS_DIR/lib/modules/$KVER"
         mkdir -p "$MODDST"
         for mod in virtio_net net_failover failover e1000 e1000e r8169 \
-                   bochs virtio-gpu virtio_dma_buf ttm serio_raw psmouse mousedev virtio_input; do
+                   bochs virtio-gpu virtio_dma_buf ttm serio_raw psmouse mousedev virtio_input \
+                   virtio virtio_ring virtio_pci virtio_mmio \
+                   cfg80211 mac80211 iwlwifi iwldvm iwlmvm \
+                   ath ath3k ath5k ath9k ath9k_hw ath9k_common ath10k_core ath10k_pci \
+                   rtl8xxxu rtw88_core rtw88_8822ce rtw88_8821ce \
+                   rtlwifi rtl_pci rtl8192ce rtl8192se rtl8723ae rtl8723be rtl8188ee \
+                   i2c-piix4 i2c-i801 i2c-hid; do
             src=$(find "$MODDIR" -name "${mod}.ko*" -type f 2>/dev/null | head -1)
             if [ -n "$src" ]; then
                 case "$src" in

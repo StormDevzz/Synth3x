@@ -188,6 +188,22 @@ const char *hw_laptop_name(void) {
     return laptop_name;
 }
 
+/* ─── VM detection via DMI and CPUID ─── */
+int hw_is_vm(void) {
+    char vendor[64] = "";
+    if (hw_dmi_vendor(vendor, sizeof(vendor)) == 0) {
+        if (strstr(vendor, "QEMU") || strstr(vendor, "VirtualBox") ||
+            strstr(vendor, "VMware") || strstr(vendor, "KVM") ||
+            strstr(vendor, "Microsoft") || strstr(vendor, "Xen"))
+            return 1;
+    }
+    char cpu_vendor[16] = "";
+    hw_cpuid_vendor(cpu_vendor);
+    if (strstr(cpu_vendor, "KVMKVMKVM") || strstr(cpu_vendor, "TCGTCG"))
+        return 1;
+    return 0;
+}
+
 /* ─── Auto-configuration ─── */
 void hw_auto_configure(void) {
     char vendor[64] = "", product[64] = "";
@@ -246,6 +262,22 @@ void hw_auto_configure(void) {
         system("modprobe psmouse 2>/dev/null || true");
     }
 
+    /* VM-specific configuration */
+    if (hw_is_vm()) {
+        printf("[HW] Virtual machine detected — loading VirtIO drivers\n");
+        system("modprobe virtio 2>/dev/null || true");
+        system("modprobe virtio_ring 2>/dev/null || true");
+        system("modprobe virtio_pci 2>/dev/null || true");
+        system("modprobe virtio_net 2>/dev/null || true");
+        system("modprobe virtio_input 2>/dev/null || true");
+        system("modprobe virtio-gpu 2>/dev/null || true");
+        system("modprobe virtio_dma_buf 2>/dev/null || true");
+        system("modprobe e1000 2>/dev/null || true");
+        system("modprobe e1000e 2>/dev/null || true");
+        system("modprobe net_failover 2>/dev/null || true");
+        system("modprobe failover 2>/dev/null || true");
+    }
+
     /* Load WiFi modules using insmod in dependency order */
     system("for d in /lib/modules/*/; do \
              [ -f \"${d}cfg80211.ko\" ] || continue; \
@@ -256,6 +288,8 @@ void hw_auto_configure(void) {
              insmod \"${d}iwlmld.ko\" 2>/dev/null; \
              insmod \"${d}iwldvm.ko\" 2>/dev/null; \
              insmod \"${d}ath.ko\" 2>/dev/null; \
+             insmod \"${d}ath3k.ko\" 2>/dev/null; \
+             insmod \"${d}ath5k.ko\" 2>/dev/null; \
              insmod \"${d}ath9k_hw.ko\" 2>/dev/null; \
              insmod \"${d}ath9k_common.ko\" 2>/dev/null; \
              insmod \"${d}ath9k.ko\" 2>/dev/null; \
@@ -264,6 +298,8 @@ void hw_auto_configure(void) {
              insmod \"${d}rtl8xxxu.ko\" 2>/dev/null; \
              insmod \"${d}rtw88_core.ko\" 2>/dev/null; \
              insmod \"${d}rtw88_8822ce.ko\" 2>/dev/null; \
+             insmod \"${d}rtlwifi.ko\" 2>/dev/null; \
+             insmod \"${d}rtl_pci.ko\" 2>/dev/null; \
              break; done 2>/dev/null || true");
 
     /* Ethernet / virtual NIC drivers */

@@ -372,7 +372,7 @@ if [ "$SIMULATION_MODE" = false ]; then
         
         # Write make.conf
         cat << 'EOF' > /mnt/gentoo/etc/portage/make.conf
-COMMON_FLAGS="-O2 -pipe -march=x86-64"
+COMMON_FLAGS="-O2 -pipe -march=x86-64 -mtune=generic -mno-avx -mno-avx2 -mno-sse4.1 -mno-sse4.2"
 CFLAGS="${COMMON_FLAGS}"
 CXXFLAGS="${COMMON_FLAGS}"
 FCFLAGS="${COMMON_FLAGS}"

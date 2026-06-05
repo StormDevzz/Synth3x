@@ -29,6 +29,9 @@ int hw_dmi_product(char *buf, int max_len);
 /* Detect if we're on a laptop (has battery / lid switch) */
 int hw_is_laptop(void);
 
+/* Detect if we're in a virtual machine */
+int hw_is_vm(void);
+
 /* Auto-configure system based on hardware detection */
 void hw_auto_configure(void);
 
