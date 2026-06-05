@@ -1,9 +1,8 @@
 CC      = gcc
-CFLAGS  = -Wall -Wextra -O2 -std=c99 -I include
-LDLIBS  = -lncurses
+CFLAGS  = -Wall -Wextra -O2 -std=c99 -D_GNU_SOURCE $(shell pkg-config --cflags gtk+-3.0)
+LDLIBS  = $(shell pkg-config --libs gtk+-3.0)
 
-SRCS    = src/core/main.c src/ui/render.c src/ui/dialog.c src/ui/viewer.c \
-          src/fs/browse.c src/fs/ops.c
+SRCS    = src/main.c src/filelist.c src/fileops.c
 OBJS    = $(SRCS:.c=.o)
 TARGET  = fileman
 
@@ -14,13 +13,7 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) -o $@ $(OBJS) $(LDLIBS)
 
-src/core/%.o: src/core/%.c include/fileman.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-src/ui/%.o: src/ui/%.c include/fileman.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-src/fs/%.o: src/fs/%.c include/fileman.h
+src/%.o: src/%.c src/fm.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
