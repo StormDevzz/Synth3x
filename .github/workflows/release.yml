@@ -147,6 +147,7 @@ jobs:
               "title": "${TITLE}",
               "description": ${COMMIT_MSG},
               "color": ${COLOR},
+              "thumbnail": {"url": "https://i.imgur.com/aw5D7My.png"},
               "fields": [
                 {"name": "Status", "value": "${TAG}", "inline": true},
                 {"name": "Branch", "value": "${BRANCH}", "inline": true},
