@@ -9,3 +9,11 @@ src/lib/target/
 AmnesiaIDE/target/
 iso/
 build/
+prog/AmnesiaIDE/target/
+prog/AmnesiaIDE/go/gh.so
+prog/Synth3x-FileMng/fileman
+prog/Synth3x-FileMng/*.o
+prog/Synth3x-FileMng/src/**/*.o
+iso/synth3x.iso
+iso/test_disk.img
+build/
