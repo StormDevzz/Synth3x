@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <cstdarg>
 
 static const int WIN_W = 1000;
 static const int WIN_H = 700;
@@ -62,6 +63,7 @@ public:
     int show_color_picker;
     int cp_r, cp_g, cp_b;
     int cp_slider_drag;
+    int cp_is_fg;
 
     int show_about;
     char status_msg[256];
@@ -69,13 +71,14 @@ public:
 
     SynPaint() : win(nullptr), ren(nullptr), canvas_tex(nullptr),
                  cairo_surf(nullptr), cr(nullptr),
-                 tool(TOOL_PEN), brush_size(3),
+                 tool(TOOL_BRUSH), brush_size(3),
                  fg{0,0,0}, bg{255,255,255},
                  mouse_x(0), mouse_y(0),
                  drawing(0), start_x(0), start_y(0),
                  last_x(0), last_y(0),
                  show_color_picker(0), cp_r(128), cp_g(128), cp_b(128),
-                 cp_slider_drag(0), show_about(0), status_timer(0) {
+                 cp_slider_drag(0), cp_is_fg(1), show_about(0),
+                 status_timer(0) {
         status_msg[0] = 0;
     }
 
@@ -93,6 +96,7 @@ public:
         if (!win) { fprintf(stderr, "Window error\n"); return -1; }
         ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED);
         if (!ren) { fprintf(stderr, "Renderer error\n"); return -1; }
+        SDL_ShowCursor(SDL_TRUE);
 
         cairo_surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
                                                 CANVAS_W, CANVAS_H);
@@ -164,26 +168,17 @@ public:
         set_status("Canvas cleared");
     }
 
-    /* ─── Drawing primitives ─── */
-    void draw_pen(int x, int y) {
+    void draw_brush_stroke(int x, int y) {
         cairo_set_source_rgb(cr, fg.r/255.0, fg.g/255.0, fg.b/255.0);
-        cairo_set_line_width(cr, 1);
-        cairo_move_to(cr, last_x - CANVAS_X, last_y - CANVAS_Y);
-        cairo_line_to(cr, x - CANVAS_X, y - CANVAS_Y);
-        cairo_stroke(cr);
-    }
-
-    void draw_brush(int x, int y) {
-        cairo_set_source_rgb(cr, fg.r/255.0, fg.g/255.0, fg.b/255.0);
-        cairo_set_line_width(cr, brush_size);
+        cairo_set_line_width(cr, tool == TOOL_PEN ? 1 : brush_size);
         cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
         cairo_move_to(cr, last_x - CANVAS_X, last_y - CANVAS_Y);
         cairo_line_to(cr, x - CANVAS_X, y - CANVAS_Y);
         cairo_stroke(cr);
     }
 
-    void draw_eraser(int x, int y) {
-        cairo_set_source_rgb(cr, 1, 1, 1);
+    void draw_eraser_stroke(int x, int y) {
+        cairo_set_source_rgb(cr, bg.r/255.0, bg.g/255.0, bg.b/255.0);
         cairo_set_line_width(cr, brush_size);
         cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
         cairo_move_to(cr, last_x - CANVAS_X, last_y - CANVAS_Y);
@@ -251,15 +246,74 @@ public:
         cairo_surface_mark_dirty(cairo_surf);
     }
 
-    /* ─── Save/load ─── */
-    void save_file() {
+    void save_file_png() {
         char path[256]; time_t t = time(nullptr);
         struct tm *lt = localtime(&t);
-        snprintf(path, sizeof(path), "synpaint_%04d%02d%02d_%02d%02d%02d.ppm",
+        snprintf(path, sizeof(path), "synpaint_%04d%02d%02d_%02d%02d%02d.png",
                  lt->tm_year+1900, lt->tm_mon+1, lt->tm_mday,
                  lt->tm_hour, lt->tm_min, lt->tm_sec);
         cairo_surface_write_to_png(cairo_surf, path);
         set_status("Saved: %s", path);
+    }
+
+    /* ─── Text rendering using Cairo ─── */
+    SDL_Texture *render_text_tex(const char *s, int r, int g, int b) {
+        int len = strlen(s);
+        if (len == 0) return nullptr;
+        int tw = len * 9 + 4;
+        int th = 18;
+
+        cairo_surface_t *surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, tw, th);
+        cairo_t *ct = cairo_create(surf);
+
+        cairo_set_source_rgba(ct, 0, 0, 0, 0);
+        cairo_paint(ct);
+        cairo_select_font_face(ct, "Sans", CAIRO_FONT_SLANT_NORMAL,
+                               CAIRO_FONT_WEIGHT_BOLD);
+        cairo_set_font_size(ct, 14.0);
+        cairo_set_source_rgb(ct, r/255.0, g/255.0, b/255.0);
+        cairo_move_to(ct, 2, 14);
+        cairo_show_text(ct, s);
+
+        SDL_Surface *sdl_surf = SDL_CreateRGBSurfaceFrom(
+            cairo_image_surface_get_data(surf),
+            tw, th, 32, cairo_image_surface_get_stride(surf),
+            0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000);
+        if (!sdl_surf) { cairo_destroy(ct); cairo_surface_destroy(surf); return nullptr; }
+
+        SDL_Texture *tex = SDL_CreateTextureFromSurface(ren, sdl_surf);
+        SDL_FreeSurface(sdl_surf);
+        cairo_destroy(ct);
+        cairo_surface_destroy(surf);
+        return tex;
+    }
+
+    void render_text(const char *s, int x, int y, int r, int g, int b) {
+        SDL_Texture *tex = render_text_tex(s, r, g, b);
+        if (!tex) return;
+        int w, h; SDL_QueryTexture(tex, nullptr, nullptr, &w, &h);
+        SDL_Rect dst = {x, y, w, h};
+        SDL_RenderCopy(ren, tex, nullptr, &dst);
+        SDL_DestroyTexture(tex);
+    }
+
+    void render_text_rect(const char *s, SDL_Rect *rect, int r, int g, int b) {
+        SDL_Texture *tex = render_text_tex(s, r, g, b);
+        if (!tex) return;
+        int tw, th; SDL_QueryTexture(tex, nullptr, nullptr, &tw, &th);
+        SDL_Rect dst = {rect->x + (rect->w - tw)/2, rect->y + (rect->h - th)/2, tw, th};
+        SDL_RenderCopy(ren, tex, nullptr, &dst);
+        SDL_DestroyTexture(tex);
+    }
+
+    /* ─── Cursor ─── */
+    void update_cursor() {
+        if (mouse_x >= CANVAS_X && mouse_x < CANVAS_X + CANVAS_W &&
+            mouse_y >= CANVAS_Y && mouse_y < CANVAS_Y + CANVAS_H) {
+            SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_CROSSHAIR));
+        } else {
+            SDL_SetCursor(SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW));
+        }
     }
 
     /* ─── Render UI ─── */
@@ -267,6 +321,7 @@ public:
         SDL_SetRenderDrawColor(ren, 45, 45, 48, 255);
         SDL_RenderClear(ren);
 
+        /* Canvas area */
         SDL_Rect canvas_rect = {CANVAS_X, CANVAS_Y, CANVAS_W, CANVAS_H};
         SDL_SetRenderDrawColor(ren, 100, 100, 100, 255);
         SDL_RenderFillRect(ren, &canvas_rect);
@@ -284,76 +339,74 @@ public:
 
     void render_toolbar() {
         int x = 5, y = 5;
-        SDL_Rect r = {x, y, TOOL_W - 10, 20};
+
+        /* ─── Tool buttons ─── */
         for (int i = 0; i < TOOL_COUNT; i++) {
-            r.y = y + i * 24;
+            SDL_Rect r = {x, y + i * 28, TOOL_W - 10, 24};
             if (i == tool) {
-                SDL_SetRenderDrawColor(ren, 80, 120, 200, 255);
+                SDL_SetRenderDrawColor(ren, 60, 100, 180, 255);
+                SDL_RenderFillRect(ren, &r);
+            } else {
+                SDL_SetRenderDrawColor(ren, 55, 55, 60, 255);
                 SDL_RenderFillRect(ren, &r);
             }
-            SDL_SetRenderDrawColor(ren, 200, 200, 200, 255);
+            SDL_SetRenderDrawColor(ren, 80, 80, 85, 255);
             SDL_RenderDrawRect(ren, &r);
-            render_text(tool_names[i], r.x + 4, r.y + 2, 200, 200, 200);
-
-            /* Tool icon */
-            int ix = r.x + TOOL_W - 30;
-            int iy = r.y + 4;
-            SDL_SetRenderDrawColor(ren, 200, 200, 200, 255);
-            switch (i) {
-                case TOOL_PEN:   SDL_RenderDrawPoint(ren, ix, iy); break;
-                case TOOL_BRUSH: { SDL_Rect br = {ix-2, iy, 5, 5};
-                                 SDL_RenderFillRect(ren, &br); } break;
-                case TOOL_ERASER: { SDL_Rect er = {ix-2, iy, 6, 6};
-                                  SDL_RenderDrawRect(ren, &er); } break;
-                case TOOL_LINE:  SDL_RenderDrawLine(ren, ix-3, iy+3, ix+3, iy-3); break;
-                case TOOL_RECT:  { SDL_Rect rr = {ix-3, iy-2, 7, 5};
-                                 SDL_RenderDrawRect(ren, &rr); } break;
-                case TOOL_CIRCLE: for (int a=0;a<360;a+=30)
-                    SDL_RenderDrawPoint(ren, (int)(ix+3*cos(a*M_PI/180)), (int)(iy+3*sin(a*M_PI/180))); break;
-                case TOOL_FILL:  SDL_RenderDrawLine(ren, ix, iy-4, ix+4, iy);
-                                 SDL_RenderDrawLine(ren, ix-4, iy, ix, iy+4); break;
-            }
+            render_text(tool_names[i], r.x + 6, r.y + 4, 220, 220, 220);
         }
 
-        /* Brush size */
-        int by = y + TOOL_COUNT * 24 + 10;
+        int by = y + TOOL_COUNT * 28 + 6;
+
+        /* ─── Brush size slider ─── */
         render_text("Size:", x + 4, by, 180, 180, 180);
-        SDL_Rect size_rect = {x + 4, by + 16, TOOL_W - 18, 8};
-        SDL_SetRenderDrawColor(ren, 60, 60, 60, 255);
-        SDL_RenderFillRect(ren, &size_rect);
-        float pct = brush_size / 20.0f;
-        SDL_Rect fill = {size_rect.x + 1, size_rect.y + 1,
-                         (int)((TOOL_W - 20) * pct), 6};
+        SDL_Rect slider_bg = {x + 4, by + 16, TOOL_W - 18, 10};
+        SDL_SetRenderDrawColor(ren, 60, 60, 65, 255);
+        SDL_RenderFillRect(ren, &slider_bg);
+        float pct = (brush_size - 1) / 19.0f;
+        SDL_Rect slider_fill = {slider_bg.x + 1, slider_bg.y + 1,
+                                (int)((TOOL_W - 20) * pct), slider_bg.h - 2};
         SDL_SetRenderDrawColor(ren, 100, 150, 220, 255);
-        SDL_RenderFillRect(ren, &fill);
+        SDL_RenderFillRect(ren, &slider_fill);
 
-        /* Color indicators */
-        int cy2 = by + 40;
-        SDL_Rect fg_rect = {x + 4, cy2, 20, 20};
+        /* Size value */
+        char sz[8]; snprintf(sz, sizeof(sz), "%d", brush_size);
+        render_text(sz, x + TOOL_W - 30, by, 200, 200, 200);
+
+        /* ─── FG/BG color boxes ─── */
+        int cy = by + 34;
+        SDL_Rect fg_box = {x + 4, cy, 24, 24};
         SDL_SetRenderDrawColor(ren, fg.r, fg.g, fg.b, 255);
-        SDL_RenderFillRect(ren, &fg_rect);
-        SDL_SetRenderDrawColor(ren, 255, 255, 255, 255);
-        SDL_RenderDrawRect(ren, &fg_rect);
-        render_text("FG", x + 28, cy2 + 2, 200, 200, 200);
+        SDL_RenderFillRect(ren, &fg_box);
+        SDL_SetRenderDrawColor(ren, 220, 220, 220, 255);
+        SDL_RenderDrawRect(ren, &fg_box);
+        render_text("FG", x + 32, cy + 4, 200, 200, 200);
+        /* Swap indicator */
+        SDL_SetRenderDrawColor(ren, 150, 150, 150, 255);
+        SDL_RenderDrawLine(ren, x + TOOL_W - 20, cy + 4, x + TOOL_W - 10, cy + 14);
+        SDL_RenderDrawLine(ren, x + TOOL_W - 20, cy + 14, x + TOOL_W - 10, cy + 4);
 
-        SDL_Rect bg_rect = {x + 4, cy2 + 24, 20, 20};
+        SDL_Rect bg_box = {x + 4, cy + 28, 24, 24};
         SDL_SetRenderDrawColor(ren, bg.r, bg.g, bg.b, 255);
-        SDL_RenderFillRect(ren, &bg_rect);
+        SDL_RenderFillRect(ren, &bg_box);
         SDL_SetRenderDrawColor(ren, 200, 200, 200, 255);
-        SDL_RenderDrawRect(ren, &bg_rect);
-        render_text("BG", x + 28, cy2 + 26, 200, 200, 200);
+        SDL_RenderDrawRect(ren, &bg_box);
+        render_text("BG", x + 32, cy + 32, 200, 200, 200);
 
-        /* File buttons */
-        int fy = cy2 + 56;
-        SDL_Rect btn = {x + 4, fy, TOOL_W - 18, 22};
-        const char *btns[] = {"New", "Save", "Undo", "About"};
+        /* Clickable color indicator (opens picker) */
+        char hex[10];
+        snprintf(hex, sizeof(hex), "#%02X%02X%02X", fg.r, fg.g, fg.b);
+        render_text(hex, x + 32, cy + 52, 180, 180, 150);
+
+        /* ─── Action buttons ─── */
+        int ay = cy + 74;
+        const char *btns[] = {"New Canvas", "Save PNG", "Undo", "About"};
         for (int i = 0; i < 4; i++) {
-            btn.y = fy + i * 26;
-            SDL_SetRenderDrawColor(ren, 60, 60, 70, 255);
+            SDL_Rect btn = {x + 4, ay + i * 26, TOOL_W - 18, 22};
+            SDL_SetRenderDrawColor(ren, 60, 60, 68, 255);
             SDL_RenderFillRect(ren, &btn);
-            SDL_SetRenderDrawColor(ren, 150, 150, 150, 255);
+            SDL_SetRenderDrawColor(ren, 85, 85, 90, 255);
             SDL_RenderDrawRect(ren, &btn);
-            render_text(btns[i], btn.x + 8, btn.y + 3, 200, 200, 200);
+            render_text(btns[i], btn.x + 6, btn.y + 3, 200, 200, 200);
         }
     }
 
@@ -367,86 +420,99 @@ public:
             SDL_SetRenderDrawColor(ren, palette[i].r, palette[i].g,
                                          palette[i].b, 255);
             SDL_RenderFillRect(ren, &r);
-            SDL_SetRenderDrawColor(ren, 80, 80, 80, 255);
-            SDL_RenderDrawRect(ren, &r);
+            /* Highlight if matches fg or bg */
+            if (palette[i].r == fg.r && palette[i].g == fg.g && palette[i].b == fg.b) {
+                SDL_SetRenderDrawColor(ren, 255, 255, 0, 255);
+                SDL_RenderDrawRect(ren, &r);
+            } else {
+                SDL_SetRenderDrawColor(ren, 80, 80, 85, 255);
+                SDL_RenderDrawRect(ren, &r);
+            }
         }
     }
 
     void render_statusbar() {
         int y = WIN_H - 20;
-        SDL_SetRenderDrawColor(ren, 30, 30, 30, 255);
+        SDL_SetRenderDrawColor(ren, 30, 30, 32, 255);
         SDL_Rect bar = {0, y, WIN_W, 20};
         SDL_RenderFillRect(ren, &bar);
 
         char buf[128];
-        snprintf(buf, sizeof(buf), "(%d,%d) | %s | Size: %d",
+        snprintf(buf, sizeof(buf), " (%d,%d) | %s | Size: %d",
                  mouse_x - CANVAS_X, mouse_y - CANVAS_Y,
                  tool_names[tool], brush_size);
-        render_text(buf, 4, y + 2, 150, 150, 150);
+        render_text(buf, 4, y + 1, 150, 150, 150);
 
-        if (status_msg[0] && SDL_GetTicks() - status_timer < 3000)
-            render_text(status_msg, WIN_W - 300, y + 2, 180, 180, 100);
+        if (status_msg[0] && SDL_GetTicks() - status_timer < 3000) {
+            int slen = strlen(status_msg);
+            render_text(status_msg, WIN_W - slen * 9 - 10, y + 1, 200, 200, 120);
+        }
     }
 
     void render_color_picker() {
-        SDL_Rect over = {0, 0, WIN_W, WIN_H};
         SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
+        SDL_Rect over = {0, 0, WIN_W, WIN_H};
         SDL_SetRenderDrawColor(ren, 0, 0, 0, 180);
         SDL_RenderFillRect(ren, &over);
         SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_NONE);
 
         int bx = WIN_W/2 - 150, by = WIN_H/2 - 100;
         SDL_Rect box = {bx, by, 300, 200};
-        SDL_SetRenderDrawColor(ren, 40, 40, 45, 255);
+        SDL_SetRenderDrawColor(ren, 45, 45, 50, 255);
         SDL_RenderFillRect(ren, &box);
-        SDL_SetRenderDrawColor(ren, 100, 100, 100, 255);
+        SDL_SetRenderDrawColor(ren, 80, 80, 85, 255);
         SDL_RenderDrawRect(ren, &box);
 
-        render_text("Color Picker", bx + 10, by + 5, 200, 200, 200);
+        render_text("Color Picker", bx + 80, by + 8, 220, 220, 220);
 
         const char *labels[] = {"R", "G", "B"};
         int *vals[] = {&cp_r, &cp_g, &cp_b};
+        uint8_t colors[] = {255, 80, 80, 80, 255, 80, 80, 80, 255};
         for (int i = 0; i < 3; i++) {
-            int ly = by + 30 + i * 30;
-            render_text(labels[i], bx + 10, ly, 200, 200, 200);
-            SDL_Rect tr = {bx + 40, ly + 2, 180, 16};
-            SDL_SetRenderDrawColor(ren, 60, 60, 60, 255);
+            int ly = by + 32 + i * 30;
+            render_text(labels[i], bx + 10, ly, colors[i*3], colors[i*3+1], colors[i*3+2]);
+            SDL_Rect tr = {bx + 35, ly, 180, 18};
+            SDL_SetRenderDrawColor(ren, 55, 55, 60, 255);
             SDL_RenderFillRect(ren, &tr);
+            SDL_SetRenderDrawColor(ren, 70, 70, 75, 255);
+            SDL_RenderDrawRect(ren, &tr);
             int v = *vals[i];
-            SDL_Rect fr = {tr.x + 1, tr.y + 1, (int)(178 * v / 255.0), 14};
-            uint8_t cr = i==0 ? 255 : 0, cg = i==1 ? 255 : 0, cb = i==2 ? 255 : 0;
+            SDL_Rect fr = {tr.x + 2, tr.y + 2, (int)(176 * v / 255.0), 14};
+            uint8_t cr = i==0?255:60, cg = i==1?255:60, cb = i==2?255:60;
             SDL_SetRenderDrawColor(ren, cr, cg, cb, 255);
             SDL_RenderFillRect(ren, &fr);
             char vbuf[8]; snprintf(vbuf, sizeof(vbuf), "%d", v);
-            render_text(vbuf, bx + 230, ly, 200, 200, 200);
+            render_text(vbuf, bx + 225, ly, 200, 200, 200);
         }
 
         /* Preview */
-        SDL_Rect prev = {bx + 230, by + 120, 50, 50};
+        SDL_Rect prev = {bx + 230, by + 100, 50, 50};
         SDL_SetRenderDrawColor(ren, cp_r, cp_g, cp_b, 255);
         SDL_RenderFillRect(ren, &prev);
-        SDL_SetRenderDrawColor(ren, 200, 200, 200, 255);
+        SDL_SetRenderDrawColor(ren, 150, 150, 150, 255);
         SDL_RenderDrawRect(ren, &prev);
+        render_text("preview", bx + 228, by + 155, 150, 150, 150);
 
-        /* OK / Cancel */
-        SDL_Rect ok_btn = {bx + 40, by + 160, 80, 28};
-        SDL_SetRenderDrawColor(ren, 60, 120, 60, 255);
+        /* OK button */
+        SDL_Rect ok_btn = {bx + 40, by + 165, 80, 26};
+        SDL_SetRenderDrawColor(ren, 50, 100, 50, 255);
         SDL_RenderFillRect(ren, &ok_btn);
-        SDL_SetRenderDrawColor(ren, 200, 200, 200, 255);
+        SDL_SetRenderDrawColor(ren, 80, 130, 80, 255);
         SDL_RenderDrawRect(ren, &ok_btn);
-        render_text("OK", ok_btn.x + 30, ok_btn.y + 5, 200, 255, 200);
+        render_text_rect("OK", &ok_btn, 220, 255, 220);
 
-        SDL_Rect ca_btn = {bx + 160, by + 160, 80, 28};
-        SDL_SetRenderDrawColor(ren, 120, 60, 60, 255);
+        /* Cancel button */
+        SDL_Rect ca_btn = {bx + 170, by + 165, 80, 26};
+        SDL_SetRenderDrawColor(ren, 100, 50, 50, 255);
         SDL_RenderFillRect(ren, &ca_btn);
-        SDL_SetRenderDrawColor(ren, 200, 200, 200, 255);
+        SDL_SetRenderDrawColor(ren, 130, 80, 80, 255);
         SDL_RenderDrawRect(ren, &ca_btn);
-        render_text("Cancel", ca_btn.x + 18, ca_btn.y + 5, 255, 200, 200);
+        render_text_rect("Cancel", &ca_btn, 255, 220, 220);
     }
 
     void render_about() {
-        SDL_Rect over = {0, 0, WIN_W, WIN_H};
         SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_BLEND);
+        SDL_Rect over = {0, 0, WIN_W, WIN_H};
         SDL_SetRenderDrawColor(ren, 0, 0, 0, 180);
         SDL_RenderFillRect(ren, &over);
         SDL_SetRenderDrawBlendMode(ren, SDL_BLENDMODE_NONE);
@@ -455,18 +521,13 @@ public:
         SDL_Rect box = {bx, by, 400, 160};
         SDL_SetRenderDrawColor(ren, 40, 40, 45, 255);
         SDL_RenderFillRect(ren, &box);
-        SDL_SetRenderDrawColor(ren, 100, 100, 100, 255);
+        SDL_SetRenderDrawColor(ren, 80, 80, 85, 255);
         SDL_RenderDrawRect(ren, &box);
 
-        render_text("SynPaint v1.0", bx + 120, by + 15, 255, 200, 100);
+        render_text("SynPaint v1.0", bx + 130, by + 15, 255, 200, 100);
         render_text("A simple paint program for Synth3x", bx + 70, by + 45, 200, 200, 200);
-        render_text("Built with SDL2 + Cairo", bx + 100, by + 70, 180, 180, 180);
-        render_text("Click anywhere to close", bx + 100, by + 100, 150, 150, 150);
-    }
-
-    void render_text(const char *s, int x, int y, int r, int g, int b) {
-        /* Simple bitmap text rendering using SDL_points */
-        /* Use SDL_ttf would be better but for simplicity draw basic text */
+        render_text("Built with SDL2 + Cairo", bx + 105, by + 70, 180, 180, 180);
+        render_text("Click anywhere to close", bx + 105, by + 100, 150, 150, 150);
     }
 
     /* ─── Input handling ─── */
@@ -491,6 +552,7 @@ public:
         case SDL_MOUSEMOTION:
             mouse_x = ev.motion.x;
             mouse_y = ev.motion.y;
+            update_cursor();
             if (drawing) {
                 handle_draw(ev.motion.x, ev.motion.y);
             }
@@ -498,59 +560,95 @@ public:
         case SDL_KEYDOWN:
             handle_key(ev.key);
             break;
-        case SDL_QUIT:
-            SDL_Event q; q.type = SDL_QUIT;
-            break;
         }
+    }
+
+    int hit_rect(int mx, int my, const SDL_Rect *r) {
+        return mx >= r->x && mx <= r->x + r->w &&
+               my >= r->y && my <= r->y + r->h;
     }
 
     void handle_mouse_down(SDL_MouseButtonEvent &btn) {
         int x = btn.x, y = btn.y;
 
-        /* Toolbar clicks */
+        /* ─── Toolbar ─── */
         if (x < TOOL_W) {
-            int ty = (y - 5) / 24;
-            if (ty >= 0 && ty < TOOL_COUNT) { tool = ty; return; }
-
-            /* Check buttons */
-            int fy = 5 + TOOL_COUNT * 24 + 10 + 40 + 56;
-            if (y >= fy && y < fy + 22) { clear_canvas(); return; }
-            if (y >= fy + 26 && y < fy + 48) { save_file(); return; }
-            if (y >= fy + 52 && y < fy + 74) { undo(); return; }
-            if (y >= fy + 78 && y < fy + 100) { show_about = 1; return; }
-
-            /* Brush size slider */
-            int sy = 5 + TOOL_COUNT * 24 + 10 + 16;
-            if (y >= sy && y <= sy + 8 && x >= 4 && x <= TOOL_W - 14) {
-                float pct = (x - 4) / (float)(TOOL_W - 18);
-                brush_size = (int)(pct * 20) + 1;
-                if (brush_size > 20) brush_size = 20;
+            int tool_h = TOOL_COUNT * 28;
+            /* Tool buttons */
+            int ti = (y - 5) / 28;
+            if (ti >= 0 && ti < TOOL_COUNT && y >= 5 && y < 5 + tool_h) {
+                tool = ti;
+                set_status("Tool: %s", tool_names[tool]);
                 return;
             }
-            /* FG/BG click */
-            int c_base = 5 + TOOL_COUNT * 24 + 10 + 40;
-            if (x >= 4 && x <= 24) {
-                if (y >= c_base && y < c_base + 20) { show_color_picker = 1;
-                    cp_r = fg.r; cp_g = fg.g; cp_b = fg.b; return; }
-                if (y >= c_base + 24 && y < c_base + 44) { show_color_picker = 1;
-                    cp_r = bg.r; cp_g = bg.g; cp_b = bg.b; return; }
+
+            int by = 5 + tool_h + 6;
+
+            /* Brush size slider */
+            SDL_Rect sld = {5 + 4, by + 16, TOOL_W - 18, 10};
+            if (hit_rect(x, y, &sld)) {
+                float pct = (x - sld.x) / (float)sld.w;
+                brush_size = (int)(pct * 19) + 1;
+                if (brush_size < 1) brush_size = 1;
+                if (brush_size > 20) brush_size = 20;
+                set_status("Brush size: %d", brush_size);
+                return;
             }
+
+            int cy = by + 34;
+
+            /* FG click opens picker */
+            SDL_Rect fg_b = {5 + 4, cy, 24, 24};
+            if (hit_rect(x, y, &fg_b)) {
+                show_color_picker = 1; cp_is_fg = 1;
+                cp_r = fg.r; cp_g = fg.g; cp_b = fg.b;
+                return;
+            }
+            /* BG click opens picker */
+            SDL_Rect bg_b = {5 + 4, cy + 28, 24, 24};
+            if (hit_rect(x, y, &bg_b)) {
+                show_color_picker = 1; cp_is_fg = 0;
+                cp_r = bg.r; cp_g = bg.g; cp_b = bg.b;
+                return;
+            }
+            /* Swap colors on the arrow */
+            SDL_Rect swap_a = {5 + TOOL_W - 24, cy, 18, 18};
+            if (hit_rect(x, y, &swap_a)) {
+                Color tmp = fg; fg = bg; bg = tmp;
+                set_status("Colors swapped");
+                return;
+            }
+
+            int ay = cy + 74;
+            SDL_Rect btns[] = {
+                {5 + 4, ay + 0*26, TOOL_W - 18, 22},
+                {5 + 4, ay + 1*26, TOOL_W - 18, 22},
+                {5 + 4, ay + 2*26, TOOL_W - 18, 22},
+                {5 + 4, ay + 3*26, TOOL_W - 18, 22},
+            };
+            if (hit_rect(x, y, &btns[0])) { clear_canvas(); return; }
+            if (hit_rect(x, y, &btns[1])) { save_file_png(); return; }
+            if (hit_rect(x, y, &btns[2])) { undo(); return; }
+            if (hit_rect(x, y, &btns[3])) { show_about = 1; return; }
             return;
         }
 
-        /* Palette clicks */
+        /* ─── Palette ─── */
         if (y < PAL_H + 2 && x >= CANVAS_X) {
             int col = (x - CANVAS_X) / (PAL_SW + 2);
             int row = y / (PAL_SW + 2);
             int idx = row * PAL_COLS + col;
             if (idx >= 0 && idx < (int)(sizeof(palette)/sizeof(palette[0]))) {
-                if (btn.button == SDL_BUTTON_LEFT) fg = palette[idx];
-                else bg = palette[idx];
+                if (btn.button == SDL_BUTTON_LEFT)
+                    fg = palette[idx];
+                else
+                    bg = palette[idx];
+                set_status("Color: #%02X%02X%02X", fg.r, fg.g, fg.b);
             }
             return;
         }
 
-        /* Canvas click - start drawing */
+        /* ─── Canvas ─── */
         if (x >= CANVAS_X && x < CANVAS_X + CANVAS_W &&
             y >= CANVAS_Y && y < CANVAS_Y + CANVAS_H &&
             btn.button == SDL_BUTTON_LEFT) {
@@ -570,18 +668,25 @@ public:
     void handle_mouse_up(SDL_MouseButtonEvent &btn) {
         if (!drawing) return;
         drawing = 0;
-        /* Commit shape tools */
-        if (tool == TOOL_LINE) { draw_line_shape(mouse_x, mouse_y); sync_canvas(); }
-        if (tool == TOOL_RECT) { draw_rect_shape(mouse_x, mouse_y); sync_canvas(); }
-        if (tool == TOOL_CIRCLE) { draw_circle_shape(mouse_x, mouse_y); sync_canvas(); }
+        if (tool == TOOL_LINE || tool == TOOL_RECT || tool == TOOL_CIRCLE) {
+            /* Restore clean state then draw final shape */
+            if (!undo_stack.empty()) {
+                UndoState &u = undo_stack.back();
+                memcpy(cairo_image_surface_get_data(cairo_surf),
+                       u.data.data(), u.w * u.h * 4);
+                cairo_surface_mark_dirty(cairo_surf);
+            }
+            if (tool == TOOL_LINE) draw_line_shape(mouse_x, mouse_y);
+            else if (tool == TOOL_RECT) draw_rect_shape(mouse_x, mouse_y);
+            else if (tool == TOOL_CIRCLE) draw_circle_shape(mouse_x, mouse_y);
+            sync_canvas();
+        }
     }
 
     void handle_draw(int x, int y) {
-        if (tool == TOOL_PEN) draw_pen(x, y);
-        else if (tool == TOOL_BRUSH) draw_brush(x, y);
-        else if (tool == TOOL_ERASER) draw_eraser(x, y);
+        if (tool == TOOL_PEN || tool == TOOL_BRUSH) draw_brush_stroke(x, y);
+        else if (tool == TOOL_ERASER) draw_eraser_stroke(x, y);
         else if (tool == TOOL_LINE || tool == TOOL_RECT || tool == TOOL_CIRCLE) {
-            /* Preview - restore saved state then draw shape */
             if (!undo_stack.empty()) {
                 UndoState &u = undo_stack.back();
                 memcpy(cairo_image_surface_get_data(cairo_surf),
@@ -600,21 +705,22 @@ public:
         if (key.keysym.sym == SDLK_z && (SDL_GetModState() & KMOD_CTRL))
             undo();
         if (key.keysym.sym == SDLK_s && (SDL_GetModState() & KMOD_CTRL))
-            save_file();
+            save_file_png();
         if (key.keysym.sym == SDLK_n && (SDL_GetModState() & KMOD_CTRL))
             clear_canvas();
     }
 
     void handle_color_picker(SDL_Event &ev) {
         int bx = WIN_W/2 - 150, by = WIN_H/2 - 100;
+
         if (ev.type == SDL_MOUSEBUTTONDOWN) {
             int mx = ev.button.x, my = ev.button.y;
+
             /* Sliders */
             for (int i = 0; i < 3; i++) {
-                int ly = by + 30 + i * 30;
-                SDL_Rect tr = {bx + 40, ly + 2, 180, 16};
-                if (mx >= tr.x && mx <= tr.x + tr.w &&
-                    my >= tr.y && my <= tr.y + tr.h) {
+                int ly = by + 32 + i * 30;
+                SDL_Rect tr = {bx + 35, ly, 180, 18};
+                if (hit_rect(mx, my, &tr)) {
                     int *vals[] = {&cp_r, &cp_g, &cp_b};
                     *vals[i] = (int)((mx - tr.x) * 255.0 / tr.w);
                     if (*vals[i] < 0) *vals[i] = 0;
@@ -623,34 +729,38 @@ public:
                     return;
                 }
             }
+
             /* OK */
-            SDL_Rect ok_btn = {bx + 40, by + 160, 80, 28};
-            if (mx >= ok_btn.x && mx <= ok_btn.x + ok_btn.w &&
-                my >= ok_btn.y && my <= ok_btn.y + ok_btn.h) {
-                fg = {(uint8_t)cp_r, (uint8_t)cp_g, (uint8_t)cp_b};
+            SDL_Rect ok_btn = {bx + 40, by + 165, 80, 26};
+            if (hit_rect(mx, my, &ok_btn)) {
+                if (cp_is_fg)
+                    fg = {(uint8_t)cp_r, (uint8_t)cp_g, (uint8_t)cp_b};
+                else
+                    bg = {(uint8_t)cp_r, (uint8_t)cp_g, (uint8_t)cp_b};
                 show_color_picker = 0;
+                set_status("Color set");
                 return;
             }
             /* Cancel */
-            SDL_Rect ca_btn = {bx + 160, by + 160, 80, 28};
-            if (mx >= ca_btn.x && mx <= ca_btn.x + ca_btn.w &&
-                my >= ca_btn.y && my <= ca_btn.y + ca_btn.h) {
+            SDL_Rect ca_btn = {bx + 170, by + 165, 80, 26};
+            if (hit_rect(mx, my, &ca_btn)) {
                 show_color_picker = 0;
                 return;
             }
             /* Click outside box closes */
             SDL_Rect box = {bx, by, 300, 200};
-            if (mx < box.x || mx > box.x + box.w ||
-                my < box.y || my > box.y + box.h)
+            if (!hit_rect(mx, my, &box))
                 show_color_picker = 0;
         }
+
         if (ev.type == SDL_MOUSEBUTTONUP)
             cp_slider_drag = 0;
+
         if (ev.type == SDL_MOUSEMOTION && cp_slider_drag > 0) {
             int mx = ev.motion.x;
             int i = cp_slider_drag - 1;
             int *vals[] = {&cp_r, &cp_g, &cp_b};
-            *vals[i] = (int)((mx - (bx + 40)) * 255.0 / 180.0);
+            *vals[i] = (int)((mx - (bx + 35)) * 255.0 / 180.0);
             if (*vals[i] < 0) *vals[i] = 0;
             if (*vals[i] > 255) *vals[i] = 255;
         }
