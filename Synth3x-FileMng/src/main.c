@@ -3,19 +3,25 @@
 AppState state;
 
 static void on_activate(GtkApplication *app, gpointer data);
-static void on_path_activate(void);
-static void on_row_activated(GtkTreeView *view, GtkTreePath *path, GtkTreeViewColumn *col);
-static void on_sidebar_row(GtkListBox *box, GtkListBoxRow *row);
 static gboolean on_key_press(GtkWidget *w, GdkEventKey *ev);
 static gboolean on_button_press(GtkWidget *w, GdkEventButton *ev);
+static void on_row_activated(GtkTreeView *v, GtkTreePath *p, GtkTreeViewColumn *c);
+static void on_path_activate(void);
+static void on_drag_data_get(GtkWidget *w, GdkDragContext *ctx,
+                              GtkSelectionData *data, guint info, guint time);
+static void on_drag_data_received(GtkWidget *w, GdkDragContext *ctx,
+                                   gint x, gint y, GtkSelectionData *data,
+                                   guint info, guint time);
 static void on_context_open(void);
 static void on_context_copy(void);
 static void on_context_move(void);
 static void on_context_delete(void);
 static void on_context_rename(void);
 static void on_context_properties(void);
-static void on_drag_data_get(GtkWidget *w, GdkDragContext *ctx, GtkSelectionData *data, guint info, guint time);
-static void on_drag_data_received(GtkWidget *w, GdkDragContext *ctx, gint x, gint y, GtkSelectionData *data, guint info, guint time);
+static void on_sidebar_activate(GtkListBox *b, GtkListBoxRow *r);
+static void show_context_menu(GdkEventButton *ev);
+
+static GtkWidget *context_menu = NULL;
 
 int main(int argc, char **argv) {
     GtkApplication *app = gtk_application_new("synth3x.fileman", G_APPLICATION_DEFAULT_FLAGS);
@@ -29,6 +35,7 @@ static void on_activate(GtkApplication *app, gpointer data) {
     (void)data;
     if (!getcwd(state.cwd, sizeof(state.cwd)))
         strcpy(state.cwd, "/");
+    state.anim_enabled = TRUE;
 
     state.window = gtk_application_window_new(app);
     gtk_window_set_title(GTK_WINDOW(state.window), "Synth3x File Manager");
@@ -55,6 +62,10 @@ static void on_activate(GtkApplication *app, gpointer data) {
     gtk_entry_set_text(GTK_ENTRY(state.path_entry), state.cwd);
     gtk_box_pack_start(GTK_BOX(toolbar), state.path_entry, TRUE, TRUE, 4);
     g_signal_connect(state.path_entry, "activate", G_CALLBACK(on_path_activate), NULL);
+
+    btn = gtk_button_new_with_label("Go");
+    gtk_box_pack_start(GTK_BOX(toolbar), btn, FALSE, FALSE, 2);
+    g_signal_connect(btn, "clicked", G_CALLBACK(path_go_to), NULL);
 
     btn = gtk_button_new_with_label("Refresh");
     gtk_box_pack_start(GTK_BOX(toolbar), btn, FALSE, FALSE, 2);
@@ -83,18 +94,19 @@ static void on_activate(GtkApplication *app, gpointer data) {
     gtk_box_pack_start(GTK_BOX(toolbar), btn, FALSE, FALSE, 2);
     g_signal_connect(btn, "clicked", G_CALLBACK(file_mkdir), NULL);
 
+    state.anim_btn = gtk_toggle_button_new_with_label("Anim");
+    gtk_toggle_button_set_active(GTK_TOGGLE_BUTTON(state.anim_btn), TRUE);
+    gtk_box_pack_start(GTK_BOX(toolbar), state.anim_btn, FALSE, FALSE, 2);
+    g_signal_connect(state.anim_btn, "toggled", G_CALLBACK(toggle_animations), NULL);
+
     GtkWidget *paned = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
     gtk_box_pack_start(GTK_BOX(vbox), paned, TRUE, TRUE, 0);
 
     state.sidebar = gtk_list_box_new();
     gtk_widget_set_size_request(state.sidebar, 160, -1);
     gtk_paned_pack1(GTK_PANED(paned), state.sidebar, FALSE, FALSE);
-    g_signal_connect(state.sidebar, "row-activated", G_CALLBACK(on_sidebar_row), NULL);
 
-    const char *places[] = {
-        g_get_home_dir(),
-        NULL
-    };
+    const char *places[] = { g_get_home_dir(), "/", NULL };
     for (int i = 0; places[i]; i++) {
         if (g_file_test(places[i], G_FILE_TEST_IS_DIR)) {
             GtkWidget *row = gtk_list_box_row_new();
@@ -104,6 +116,7 @@ static void on_activate(GtkApplication *app, gpointer data) {
             gtk_list_box_insert(GTK_LIST_BOX(state.sidebar), row, -1);
         }
     }
+    g_signal_connect(state.sidebar, "row-activated", G_CALLBACK(on_sidebar_activate), NULL);
 
     GtkWidget *scroll = gtk_scrolled_window_new(NULL, NULL);
     gtk_paned_pack2(GTK_PANED(paned), scroll, TRUE, TRUE);
@@ -151,21 +164,15 @@ static void on_activate(GtkApplication *app, gpointer data) {
 
     g_signal_connect(state.list_view, "row-activated", G_CALLBACK(on_row_activated), NULL);
     g_signal_connect(state.window, "key-press-event", G_CALLBACK(on_key_press), NULL);
+    g_signal_connect(state.list_view, "button-press-event", G_CALLBACK(on_button_press), NULL);
 
-    GtkTargetEntry drag_targets[] = {
-        { (char*)"text/uri-list", 0, 0 }
-    };
+    GtkTargetEntry drag_targets[] = { { (char*)"text/uri-list", 0, 0 } };
     gtk_tree_view_enable_model_drag_source(GTK_TREE_VIEW(state.list_view),
         GDK_BUTTON1_MASK, drag_targets, 1, GDK_ACTION_MOVE | GDK_ACTION_COPY);
     gtk_tree_view_enable_model_drag_dest(GTK_TREE_VIEW(state.list_view),
         drag_targets, 1, GDK_ACTION_MOVE | GDK_ACTION_COPY);
-
-    g_signal_connect(state.list_view, "drag-data-get",
-        G_CALLBACK(on_drag_data_get), NULL);
-    g_signal_connect(state.list_view, "drag-data-received",
-        G_CALLBACK(on_drag_data_received), NULL);
-    g_signal_connect(state.list_view, "button-press-event",
-        G_CALLBACK(on_button_press), NULL);
+    g_signal_connect(state.list_view, "drag-data-get", G_CALLBACK(on_drag_data_get), NULL);
+    g_signal_connect(state.list_view, "drag-data-received", G_CALLBACK(on_drag_data_received), NULL);
 
     GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
     gtk_box_pack_start(GTK_BOX(vbox), hbox, FALSE, FALSE, 0);
@@ -175,44 +182,55 @@ static void on_activate(GtkApplication *app, gpointer data) {
     gtk_container_set_border_width(GTK_CONTAINER(state.status_label), 3);
     gtk_box_pack_start(GTK_BOX(hbox), state.status_label, TRUE, TRUE, 0);
 
+    init_animations();
     load_directory();
     gtk_widget_show_all(state.window);
 }
 
-// ----- navigation callbacks -----
 static void on_path_activate(void) {
     go_path(gtk_entry_get_text(GTK_ENTRY(state.path_entry)));
 }
-static void on_row_activated(GtkTreeView *view, GtkTreePath *path, GtkTreeViewColumn *col) {
-    (void)view; (void)path; (void)col;
+
+static void on_row_activated(GtkTreeView *v, GtkTreePath *p, GtkTreeViewColumn *c) {
+    (void)v; (void)p; (void)c;
     open_selected();
 }
-static void on_sidebar_row(GtkListBox *box, GtkListBoxRow *row) {
-    (void)box;
-    GtkWidget *l = gtk_bin_get_child(GTK_BIN(row));
-    go_path(gtk_label_get_text(GTK_LABEL(l)));
-}
 
-// ----- key press -----
 static gboolean on_key_press(GtkWidget *w, GdkEventKey *ev) {
     (void)w;
     if (ev->keyval == GDK_KEY_BackSpace) { go_up(); return TRUE; }
     if (ev->keyval == GDK_KEY_Delete) { file_delete(); return TRUE; }
+    if (ev->keyval == GDK_KEY_F5) { load_directory(); return TRUE; }
     if ((ev->state & GDK_CONTROL_MASK) && ev->keyval == GDK_KEY_c) { file_copy(); return TRUE; }
     if ((ev->state & GDK_CONTROL_MASK) && ev->keyval == GDK_KEY_x) { file_move(); return TRUE; }
     if ((ev->state & GDK_CONTROL_MASK) && ev->keyval == GDK_KEY_n) { file_mkdir(); return TRUE; }
+    if ((ev->state & GDK_CONTROL_MASK) && ev->keyval == GDK_KEY_l) { path_go_to(); return TRUE; }
     return FALSE;
 }
 
-// ----- right-click context menu -----
-static GtkWidget* context_menu = NULL;
+static gboolean on_button_press(GtkWidget *w, GdkEventButton *ev) {
+    (void)w;
+    if (ev->type == GDK_BUTTON_PRESS && ev->button == 3) {
+        GtkTreePath *path;
+        if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(state.list_view),
+                                          ev->x, ev->y, &path, NULL, NULL, NULL)) {
+            gtk_tree_selection_unselect_all(
+                gtk_tree_view_get_selection(GTK_TREE_VIEW(state.list_view)));
+            gtk_tree_selection_select_path(
+                gtk_tree_view_get_selection(GTK_TREE_VIEW(state.list_view)), path);
+            gtk_tree_path_free(path);
+        }
+        show_context_menu(ev);
+        return TRUE;
+    }
+    return FALSE;
+}
 
 static void show_context_menu(GdkEventButton *ev) {
     if (context_menu) gtk_widget_destroy(context_menu);
     context_menu = gtk_menu_new();
 
     GtkWidget *item;
-
     item = gtk_menu_item_new_with_label("Open");
     g_signal_connect(item, "activate", G_CALLBACK(on_context_open), NULL);
     gtk_menu_shell_append(GTK_MENU_SHELL(context_menu), item);
@@ -247,39 +265,18 @@ static void show_context_menu(GdkEventButton *ev) {
     gtk_menu_popup_at_pointer(GTK_MENU(context_menu), (GdkEvent*)ev);
 }
 
-static gboolean on_button_press(GtkWidget *w, GdkEventButton *ev) {
-    (void)w;
-    if (ev->type == GDK_BUTTON_PRESS && ev->button == 3) {
-        GtkTreePath *path;
-        if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(state.list_view),
-                                          ev->x, ev->y, &path, NULL, NULL, NULL)) {
-            gtk_tree_selection_unselect_all(
-                gtk_tree_view_get_selection(GTK_TREE_VIEW(state.list_view)));
-            gtk_tree_selection_select_path(
-                gtk_tree_view_get_selection(GTK_TREE_VIEW(state.list_view)), path);
-            gtk_tree_path_free(path);
-        }
-        show_context_menu(ev);
-        return TRUE;
-    }
-    if (ev->type == GDK_BUTTON_PRESS && ev->button == 1) {
-        GtkTreePath *path;
-        if (gtk_tree_view_get_path_at_pos(GTK_TREE_VIEW(state.list_view),
-                                          ev->x, ev->y, &path, NULL, NULL, NULL)) {
-            gtk_tree_path_free(path);
-        }
-    }
-    return FALSE;
+static void on_context_open(void)       { open_selected(); }
+static void on_context_copy(void)       { file_copy(); }
+static void on_context_move(void)       { file_move(); }
+static void on_context_delete(void)     { file_delete(); }
+static void on_context_rename(void)     { file_rename(); }
+static void on_context_properties(void) { show_properties(); }
+static void on_sidebar_activate(GtkListBox *b, GtkListBoxRow *r) {
+    (void)b;
+    GtkWidget *l = gtk_bin_get_child(GTK_BIN(r));
+    go_path(gtk_label_get_text(GTK_LABEL(l)));
 }
 
-static void on_context_open(void)    { open_selected(); }
-static void on_context_copy(void)    { file_copy(); }
-static void on_context_move(void)    { file_move(); }
-static void on_context_delete(void)  { file_delete(); }
-static void on_context_rename(void)  { file_rename(); }
-static void on_context_properties(void) { show_properties(); }
-
-// ----- drag source -----
 static void on_drag_data_get(GtkWidget *w, GdkDragContext *ctx,
                               GtkSelectionData *data, guint info, guint time) {
     (void)w; (void)ctx; (void)info; (void)time;
@@ -295,7 +292,6 @@ static void on_drag_data_get(GtkWidget *w, GdkDragContext *ctx,
     }
 }
 
-// ----- drop destination -----
 static void on_drag_data_received(GtkWidget *w, GdkDragContext *ctx,
                                    gint x, gint y, GtkSelectionData *data,
                                    guint info, guint time) {
