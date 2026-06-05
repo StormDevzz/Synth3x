@@ -71,7 +71,8 @@ gcc $DYN_FLAGS \
     -I src/compositor -I/usr/include/libdrm -I/usr/include/drm \
     -o build/synth3x src/compositor/main.c src/compositor/drm.c \
     src/compositor/input.c src/compositor/wl_server.c \
-    src/compositor/shell.c src/compositor/render.S src/compositor/font.S \
+    src/compositor/shell.c src/compositor/protocols.c \
+    src/compositor/render.S src/compositor/font.S \
     -lpthread -lrt -lm -ldrm
 echo "  ✓ Synth3x Wayland compositor compiled"
 
