@@ -2,7 +2,8 @@
 #include <ncurses.h>
 #include <string.h>
 #include <stdlib.h>
-#include "fileman.h"
+#include <stdio.h>
+#include <fileman.h>
 
 static FileState fs;
 
@@ -13,8 +14,10 @@ static void cleanup(void) {
 
 static void refresh_dir(FileState *fs) {
     fs_load(fs);
-    if (fs->cursor >= fs->count) fs->cursor = fs->count > 0 ? fs->count - 1 : 0;
-    if (fs->top > fs->cursor) fs->top = fs->cursor;
+    if (fs->cursor >= fs->count)
+        fs->cursor = fs->count > 0 ? fs->count - 1 : 0;
+    if (fs->top > fs->cursor)
+        fs->top = fs->cursor;
     int h = LINES - 4;
     if (fs->top + h > fs->count && fs->count > 0)
         fs->top = fs->count > h ? fs->count - h : 0;
@@ -44,7 +47,8 @@ int main(void) {
         ch = getch();
 
         switch (ch) {
-        case 'q': case 27: return 0;
+        case 'q': case 27:
+            return 0;
 
         case KEY_UP:    case 'k':
             if (fs.cursor > 0) fs.cursor--;
@@ -68,33 +72,27 @@ int main(void) {
             break;
 
         case 'n':
-            fs.sort_by = SORT_NAME;
-            fs.sort_rev = 0;
+            fs.sort_by = SORT_NAME; fs.sort_rev = 0;
             fs_sort(&fs); refresh_dir(&fs);
             break;
         case 's':
-            fs.sort_by = SORT_SIZE;
-            fs.sort_rev = 0;
+            fs.sort_by = SORT_SIZE; fs.sort_rev = 0;
             fs_sort(&fs); refresh_dir(&fs);
             break;
         case 't':
-            fs.sort_by = SORT_TIME;
-            fs.sort_rev = 0;
+            fs.sort_by = SORT_TIME; fs.sort_rev = 0;
             fs_sort(&fs); refresh_dir(&fs);
             break;
         case 'N':
-            fs.sort_by = SORT_NAME;
-            fs.sort_rev = !fs.sort_rev;
+            fs.sort_by = SORT_NAME; fs.sort_rev = !fs.sort_rev;
             fs_sort(&fs); refresh_dir(&fs);
             break;
         case 'S':
-            fs.sort_by = SORT_SIZE;
-            fs.sort_rev = !fs.sort_rev;
+            fs.sort_by = SORT_SIZE; fs.sort_rev = !fs.sort_rev;
             fs_sort(&fs); refresh_dir(&fs);
             break;
         case 'T':
-            fs.sort_by = SORT_TIME;
-            fs.sort_rev = !fs.sort_rev;
+            fs.sort_by = SORT_TIME; fs.sort_rev = !fs.sort_rev;
             fs_sort(&fs); refresh_dir(&fs);
             break;
 
@@ -104,9 +102,8 @@ int main(void) {
             if (e->is_dir) {
                 char path[4096];
                 snprintf(path, sizeof(path), "%s/%s", fs.cwd, e->name);
-                if (!fs_cd(&fs, path)) {
+                if (!fs_cd(&fs, path))
                     draw_error("cannot enter directory");
-                }
                 refresh_dir(&fs);
             } else {
                 char path[4096];
@@ -118,11 +115,10 @@ int main(void) {
         }
         case KEY_BACKSPACE: case 127: case 'h': {
             char *slash = strrchr(fs.cwd, '/');
-            if (slash && slash != fs.cwd) {
+            if (slash && slash != fs.cwd)
                 *slash = 0;
-            } else if (slash == fs.cwd) {
+            else if (slash == fs.cwd)
                 *(slash + 1) = 0;
-            }
             refresh_dir(&fs);
             break;
         }

@@ -5,16 +5,15 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
-#include "fileman.h"
+#include <fileman.h>
 
 void fs_init(FileState *fs) {
     memset(fs, 0, sizeof(*fs));
     fs->sort_by = SORT_NAME;
     fs->capacity = 256;
     fs->entries = malloc(fs->capacity * sizeof(FileEntry));
-    if (!getcwd(fs->cwd, sizeof(fs->cwd))) {
+    if (!getcwd(fs->cwd, sizeof(fs->cwd)))
         strcpy(fs->cwd, "/");
-    }
 }
 
 void fs_free(FileState *fs) {
@@ -53,10 +52,12 @@ static int entry_cmp_time(const void *a, const void *b) {
 }
 
 void fs_sort(FileState *fs) {
-    qsort(fs->entries, fs->count, sizeof(FileEntry),
-          fs->sort_by == SORT_SIZE ? entry_cmp_size :
-          fs->sort_by == SORT_TIME ? entry_cmp_time :
-          entry_cmp_name);
+    int (*cmp)(const void *, const void *) = entry_cmp_name;
+    if (fs->sort_by == SORT_SIZE) cmp = entry_cmp_size;
+    else if (fs->sort_by == SORT_TIME) cmp = entry_cmp_time;
+
+    qsort(fs->entries, fs->count, sizeof(FileEntry), cmp);
+
     if (fs->sort_rev) {
         for (int i = 0, j = fs->count - 1; i < j; i++, j--) {
             FileEntry t = fs->entries[i];
@@ -72,7 +73,6 @@ int fs_load(FileState *fs) {
 
     fs->count = 0;
     struct dirent *de;
-    struct stat st;
 
     while ((de = readdir(d)) != NULL) {
         if (strcmp(de->d_name, ".") == 0) continue;
@@ -88,6 +88,7 @@ int fs_load(FileState *fs) {
         char full[4096];
         snprintf(full, sizeof(full), "%s/%s", fs->cwd, de->d_name);
 
+        struct stat st;
         if (lstat(full, &st) == 0) {
             e->mode   = st.st_mode;
             e->size   = st.st_size;

@@ -37,6 +37,7 @@ void   fs_sort(FileState *fs);
 char*  fmt_size(off_t size, char *buf, size_t len);
 char*  fmt_time(time_t t, char *buf, size_t len);
 int    confirm_dialog(const char *msg, const char *detail);
+char*  input_dialog(const char *prompt, const char *initial);
 
 void   init_colors(void);
 void   draw_ui(FileState *fs);
