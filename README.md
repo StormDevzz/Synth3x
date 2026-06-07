@@ -1,113 +1,41 @@
-<p align="center">
-  <img src="https://i.imgur.com/aw5D7My.png" alt="S3n">
-</p>
-
 # Synth3x
 
-**Gentoo Hardened Desktop** — Wayland, Tor, full-disk encryption, terminal installer.
+Synth3x is an amnesic, hardened, source-based operating system powered by Gentoo Linux, a custom C/Assembly Wayland compositor (`AmnesiaDE`), and a Rust-based safe process installer.
 
 ---
 
 ## Quick Start
 
-```bash
-make all              # Build everything
-make run              # QEMU (kernel + initramfs)
-make run-iso          # Boot from ISO
-make run-installer    # ISO in installer mode
-```
-
-Build a full ISO:
-
+### Build the Live ISO
 ```bash
 ./scripts/build_iso.sh
 ```
 
----
-
-## Desktop
-
-Custom Wayland compositor with DRM/KMS — no X11.
-
-| Key | Action |
-|-----|--------|
-| `1` | New window |
-| `CapsLock` | Close window |
-| `Tab` | Switch window |
-| `Up` / `Dn` | Switch workspace |
-| `ESC` | Exit |
-
-Built-in apps: Terminal, Browser, SysInfo, 8-page Guide.
+### Run in QEMU
+```bash
+make run-iso          # Boot the Live environment
+make run-installer    # Boot directly into the terminal installer
+```
 
 ---
 
-## Commands
+## Read the Docs (Mandatory)
 
-| What | How |
-|------|-----|
-| Web | `browser` |
-| Install packages | `syn inst <pkg>` / `syn binary <pkg>` |
-| List installed | `syn list` |
-| Search | `syn search <query>` |
-| Install OS | `synth3x-installer` |
-| WiFi setup | `synth3x-wifi <SSID> <password>` |
-| Download stage3 | `synth3x-downloader --stage3` |
-| System info | `SysInfo` desktop window |
-| Portage directly | `emerge --ask <pkg>` |
+Synth3x is a source-based OS that expects you to understand what is happening under the hood. Before you build, configure, or install the OS, you **must** read the relevant documentation:
 
----
-
-## Internet
-
-- **Ethernet** — auto DHCP
-- **WiFi** — `synth3x-wifi MySSID MyPassword`
-- **Interactive** — `iwctl` or `wpa_supplicant`
-- **Static IP** — `ip addr add` + `ip route add default`
-- **Tor** — transparent proxy with nftables firewall
-
----
-
-## Installer (10 steps)
-
-1. Safety check — boot disk detection
-2. WiFi / network setup
-3. User account creation
-4. Storage scan
-5. Triple-confirmation safety check
-6. Desktop selection (AmnesiaDE / KDE / GNOME)
-7. Download Stage3 + Portage
-8. GPT partitioning (EFI + ext4)
-9. Gentoo base installation + chroot
-10. Desktop deployment + GRUB
-
----
-
-## GRUB Boot Menu
-
-| Entry | Description |
-|-------|-------------|
-| Synth3x (Desktop) | Graphical desktop |
-| Synth3x Installer | Installer environment |
-| Reboot | Restart |
-| Shutdown | Power off |
-
----
-
-## Technology
-
-| Component | Stack |
-|-----------|-------|
-| Compositor | C + Assembly, Wayland, DRM/KMS |
-| Init | C, hardware detection |
-| Installer | Rust + C |
-| Package manager | C (`syn`) + Portage/emerge |
-| WiFi | C (wpa_supplicant / iwd / nmcli) |
-| Downloader | C (curl / wget / busybox) |
-| Security | Rust — process supervision, privilege separation |
-| Build | GNU Make + Cargo + grub-mkrescue |
-
----
-
-## Hardware Support
-
-Auto-detection for Lenovo, Acer, Dell, HP laptops.
+*   **How do I install the operating system?**
+    Follow the step-by-step pipeline in the [Gentoo Installation Guide](docs/gentoo_installation.md).
+*   **How do I download Stage3 or fetch packages?**
+    Learn how to fetch clean environments in the [Stage3 Download Guide](docs/gentoo_download_stage3.md) and connect to [Global Download Mirrors](docs/gentoo_download_mirrors.md).
+*   **How do I configure USE flags and manage packages?**
+    Read the [Portage Package Manager Guide](docs/gentoo_portage.md) to control how your packages compile.
+*   **How do I optimize system flags and make compilation faster?**
+    Configure `/etc/portage/make.conf` using the [make.conf Configuration Guide](docs/gentoo_makeconfig.md).
+*   **My compile times are slow. How do I speed them up?**
+    Implement these [10 Ways to Speed Up Gentoo](docs/gentoo_download_speedup.md) to compile in RAM, enable parallel downloading, and configure cache.
+*   **How do I configure services or build a custom kernel?**
+    Read the [Kernel Configuration Guide](docs/gentoo_kernel.md) and the [OpenRC Service Management Guide](docs/gentoo_openrc.md).
+*   **Something failed to build. How do I debug it?**
+    Consult the [Portage Troubleshooting Guide](docs/gentoo_troubleshooting.md) for OOM issues, masked packages, and dependency conflicts.
+*   **Want an overview of the architecture?**
+    Read the [Gentoo Intro & Philosophy Guide](docs/gentoo_intro.md).
