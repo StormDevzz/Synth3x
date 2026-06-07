@@ -39,6 +39,8 @@ Synth3x is a source-based OS that expects you to understand what is happening un
     Consult the [Portage Troubleshooting Guide](docs/gentoo_troubleshooting.md) for OOM issues, masked packages, and dependency conflicts.
 *   **Want an overview of the architecture?**
     Read the [Gentoo Intro & Philosophy Guide](docs/gentoo_intro.md).
+*   **How does Gentoo Hardened security work?**
+    Read the [Gentoo Hardened Security Guide](docs/gentoo_security.md).
 
 ---
 
