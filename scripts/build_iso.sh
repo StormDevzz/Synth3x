@@ -275,10 +275,11 @@ if [ -d "/usr/lib/grub/x86_64-efi" ]; then
     cp -a "/usr/lib/grub/x86_64-efi" "$INITRAMFS_DIR/usr/lib/grub/"
 fi
 
-copy_deps "$DIR/build/init" "$INITRAMFS_DIR"
+copy_deps "$INITRAMFS_DIR/init" "$INITRAMFS_DIR"
 copy_deps "$TOR_BIN" "$INITRAMFS_DIR"
 copy_deps "$NFT_BIN" "$INITRAMFS_DIR"
 copy_deps "$INITRAMFS_DIR/usr/bin/synth3x" "$INITRAMFS_DIR"
+copy_deps "$INITRAMFS_DIR/usr/bin/synth3x-installer" "$INITRAMFS_DIR"
 copy_deps "/bin/bash" "$INITRAMFS_DIR"
 copy_deps "$BUSYBOX_BIN" "$INITRAMFS_DIR"
 [ -n "$W3M_BIN" ] && [ -f "$W3M_BIN" ] && copy_deps "$W3M_BIN" "$INITRAMFS_DIR"
