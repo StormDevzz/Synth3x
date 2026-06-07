@@ -25,9 +25,9 @@ RUST_INSTALLER = $(BUILD)/synth3x-installer
 # ASM fast scanner (no libc, static)
 INSTALLER_FASTSCAN = $(BUILD)/synth3x-fastscan
 
-.PHONY: all clean iso run rust amnesia-ide
+.PHONY: all clean iso run rust progs
 
-all: $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_BINS) $(INSTALLER_DOWNLOADER) $(INSTALLER_WIFI) rust $(INSTALLER_FASTSCAN) boot/grub.cfg
+all: $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_BINS) $(INSTALLER_DOWNLOADER) $(INSTALLER_WIFI) rust $(INSTALLER_FASTSCAN) boot/grub.cfg progs
 
 # ─── Compositor (Wayland + DRM/KMS + AmnesiaDE shell) ───
 COMPOSITOR_SRC = \
@@ -122,20 +122,40 @@ $(RUST_INSTALLER): $(wildcard $(RUST_DIR)/synth3x-installer/src/*.rs) $(wildcard
 
 rust: $(RUST_INSTALLER)
 
-# ─── AmnesiaIDE (lightweight terminal IDE) ───
-AMNESIA_DIR = AmnesiaIDE
-AMNESIA_BIN = $(BUILD)/amnesia-ide
+# ─── Custom applications in prog/ ───
+PROG_DIR = $(BUILD)/prog
+PROGS = $(PROG_DIR)/amnesia-ide $(PROG_DIR)/FastWords $(PROG_DIR)/SynPaint $(PROG_DIR)/fileman
 
-amnesia-ide:
+$(PROG_DIR)/amnesia-ide:
+	@mkdir -p $(PROG_DIR)
 	@echo "  ── Building AmnesiaIDE..."
-	$(CARGO) build --release --manifest-path $(AMNESIA_DIR)/Cargo.toml 2>&1
-	@cp $(AMNESIA_DIR)/target/release/amnesia-ide $(AMNESIA_BIN) 2>/dev/null || true
-	@echo "  ── AmnesiaIDE: $(AMNESIA_BIN)"
+	$(CARGO) build --release --manifest-path prog/AmnesiaIDE/Cargo.toml 2>&1
+	@cp prog/AmnesiaIDE/target/release/amnesia-ide $@ 2>/dev/null || true
+
+$(PROG_DIR)/FastWords:
+	@mkdir -p $(PROG_DIR)
+	@echo "  ── Building FastWords..."
+	@make -C prog/FastWords 2>&1
+	@cp prog/FastWords/FastWords $@ 2>/dev/null || true
+
+$(PROG_DIR)/SynPaint:
+	@mkdir -p $(PROG_DIR)
+	@echo "  ── Building SynPaint..."
+	@make -C prog/SynPaint 2>&1
+	@cp prog/SynPaint/SynPaint $@ 2>/dev/null || true
+
+$(PROG_DIR)/fileman:
+	@mkdir -p $(PROG_DIR)
+	@echo "  ── Building Synth3x-FileMng..."
+	@make -C prog/Synth3x-FileMng 2>&1
+	@cp prog/Synth3x-FileMng/fileman $@ 2>/dev/null || true
+
+progs: $(PROGS)
 
 # ─── Initramfs ───
 INITRAMFS = $(BUILD)/initrd.img
 ISO_KVER = 6.18.33-2-cachyos-lts
-$(INITRAMFS): $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_BINS) $(INSTALLER_DOWNLOADER) $(INSTALLER_WIFI) $(RUST_INSTALLER) $(INSTALLER_FASTSCAN)
+$(INITRAMFS): $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_BINS) $(INSTALLER_DOWNLOADER) $(INSTALLER_WIFI) $(RUST_INSTALLER) $(INSTALLER_FASTSCAN) progs
 	@echo "  ── Building initramfs..."
 	@rm -rf $(BUILD)/initramfs
 	@mkdir -p $(BUILD)/initramfs/bin $(BUILD)/initramfs/sbin
@@ -265,6 +285,12 @@ $(INITRAMFS): $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_B
 	@cp src/checks/check_drivers.sh $(BUILD)/initramfs/usr/bin/check-drivers-all
 	@cp boot/torrc $(BUILD)/initramfs/etc/torrc 2>/dev/null || true
 	@cp boot/nftables.rules $(BUILD)/initramfs/etc/nftables.rules 2>/dev/null || true
+	@mkdir -p $(BUILD)/initramfs/usr/share/synth3x/prog
+	@for p in amnesia-ide FastWords SynPaint fileman; do \
+		if [ -f $(PROG_DIR)/$$p ]; then \
+			cp $(PROG_DIR)/$$p $(BUILD)/initramfs/usr/share/synth3x/prog/; \
+		fi; \
+	done
 	
 	# Busybox
 	@cp /bin/busybox $(BUILD)/initramfs/bin/busybox 2>/dev/null || true
@@ -378,4 +404,8 @@ run-installer: iso
 clean:
 	@rm -rf $(BUILD) iso
 	@$(CARGO) clean --manifest-path $(RUST_DIR)/Cargo.toml 2>/dev/null || true
+	@$(CARGO) clean --manifest-path prog/AmnesiaIDE/Cargo.toml 2>/dev/null || true
+	@make -C prog/FastWords clean 2>/dev/null || true
+	@make -C prog/SynPaint clean 2>/dev/null || true
+	@make -C prog/Synth3x-FileMng clean 2>/dev/null || true
 	@echo "  ── Cleaned"

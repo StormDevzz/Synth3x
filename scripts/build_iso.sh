@@ -106,6 +106,32 @@ echo "  -- Compiling installer C components..."
 gcc $BASE_FLAGS -DVERSION=\"$VERSION\" -DSTANDALONE -o build/synth3x-downloader src/installer/downloader.c 2>/dev/null && echo "  ✓ synth3x-downloader" || echo "  ⚠ downloader build failed"
 gcc $BASE_FLAGS -DVERSION=\"$VERSION\" -DSTANDALONE -o build/synth3x-wifi src/installer/wifi_manager.c 2>/dev/null && echo "  ✓ synth3x-wifi" || echo "  ⚠ wifi_manager build failed"
 
+echo "  -- Compiling custom applications in prog/ ..."
+mkdir -p build/prog
+# 1. AmnesiaIDE
+if command -v cargo >/dev/null 2>&1; then
+    cargo build --release --manifest-path prog/AmnesiaIDE/Cargo.toml 2>&1 || true
+    cp prog/AmnesiaIDE/target/release/amnesia-ide build/prog/amnesia-ide 2>/dev/null || true
+fi
+# 2. FastWords
+make -C prog/FastWords 2>&1 || true
+if [ -f prog/FastWords/FastWords ]; then
+    cp prog/FastWords/FastWords build/prog/
+fi
+# 3. SynPaint
+make -C prog/SynPaint 2>&1 || true
+if [ -f prog/SynPaint/SynPaint ]; then
+    cp prog/SynPaint/SynPaint build/prog/
+fi
+# 4. Synth3x-FileMng
+make -C prog/Synth3x-FileMng 2>&1 || true
+if [ -f prog/Synth3x-FileMng/fileman ]; then
+    cp prog/Synth3x-FileMng/fileman build/prog/
+fi
+for p in amnesia-ide FastWords SynPaint fileman; do
+    [ -f "build/prog/$p" ] && echo "  ✓ $p" || echo "  ⚠ $p build failed"
+done
+
 # 3. Create isolated initramfs structure
 echo "[3/6] Constructing RAM-only amnesic initramfs..."
 INITRAMFS_DIR="build/initramfs"
@@ -164,6 +190,14 @@ mkdir -p "$INITRAMFS_DIR/usr/bin/checks"
 cp build/checks/* "$INITRAMFS_DIR/usr/bin/checks/"
 cp src/checks/tor-start.sh "$INITRAMFS_DIR/usr/bin/tor-start"
 cp src/checks/check_drivers.sh "$INITRAMFS_DIR/usr/bin/check-drivers-all"
+
+# Copy custom programs to stage folder
+mkdir -p "$INITRAMFS_DIR/usr/share/synth3x/prog"
+for p in amnesia-ide FastWords SynPaint fileman; do
+    if [ -f "build/prog/$p" ]; then
+        cp "build/prog/$p" "$INITRAMFS_DIR/usr/share/synth3x/prog/"
+    fi
+done
 
 # Create security auditor script
 cat << 'EOF' > "$INITRAMFS_DIR/usr/bin/checks-all"

@@ -774,7 +774,9 @@ fn download_stage3() -> bool {
 
 /// ─── Install base system ───
 fn install_base(drive: &str, username: &str, password: &str, hostname: &str,
-                timezone: &str, locale: &str, simulation: bool) {
+                timezone: &str, locale: &str, install_amnesia: bool,
+                install_fastwords: bool, install_synpaint: bool,
+                install_fileman: bool, simulation: bool) {
     let root_part = if Path::new(&format!("{}2", drive)).exists() {
         format!("{}2", drive)
     } else {
@@ -990,6 +992,93 @@ fn install_base(drive: &str, username: &str, password: &str, hostname: &str,
             }
         }
 
+        // Copy custom programs
+        println!("     {}» Installing custom programs...{}", NEON_GREEN, HX);
+        let target_bin_dir = "/mnt/gentoo/usr/bin";
+        let target_apps_dir = "/mnt/gentoo/usr/share/applications";
+        let _ = fs::create_dir_all(target_bin_dir);
+        let _ = fs::create_dir_all(target_apps_dir);
+
+        if install_amnesia {
+            let src = "/usr/share/synth3x/prog/amnesia-ide";
+            let dst = "/mnt/gentoo/usr/bin/amnesia-ide";
+            if fs::copy(src, dst).is_ok() {
+                let _ = Command::new("chmod").args(["+x", dst]).status();
+                let desktop_content = "[Desktop Entry]\n\
+                                       Type=Application\n\
+                                       Name=AmnesiaIDE\n\
+                                       Comment=Amnesia Terminal and GUI IDE\n\
+                                       Exec=/usr/bin/amnesia-ide\n\
+                                       Icon=text-editor\n\
+                                       Terminal=false\n\
+                                       Categories=Development;IDE;\n";
+                let _ = fs::write("/mnt/gentoo/usr/share/applications/amnesia-ide.desktop", desktop_content);
+                println!("       ✓ AmnesiaIDE installed");
+            } else {
+                println!("       ⚠ AmnesiaIDE binary not found or failed to copy");
+            }
+        }
+
+        if install_fastwords {
+            let src = "/usr/share/synth3x/prog/FastWords";
+            let dst = "/mnt/gentoo/usr/bin/FastWords";
+            if fs::copy(src, dst).is_ok() {
+                let _ = Command::new("chmod").args(["+x", dst]).status();
+                let desktop_content = "[Desktop Entry]\n\
+                                       Type=Application\n\
+                                       Name=FastWords\n\
+                                       Comment=Minimalist Word Processor\n\
+                                       Exec=/usr/bin/FastWords\n\
+                                       Icon=accessories-text-editor\n\
+                                       Terminal=false\n\
+                                       Categories=Office;WordProcessor;\n";
+                let _ = fs::write("/mnt/gentoo/usr/share/applications/FastWords.desktop", desktop_content);
+                println!("       ✓ FastWords installed");
+            } else {
+                println!("       ⚠ FastWords binary not found or failed to copy");
+            }
+        }
+
+        if install_synpaint {
+            let src = "/usr/share/synth3x/prog/SynPaint";
+            let dst = "/mnt/gentoo/usr/bin/SynPaint";
+            if fs::copy(src, dst).is_ok() {
+                let _ = Command::new("chmod").args(["+x", dst]).status();
+                let desktop_content = "[Desktop Entry]\n\
+                                       Type=Application\n\
+                                       Name=SynPaint\n\
+                                       Comment=Retro painting application\n\
+                                       Exec=/usr/bin/SynPaint\n\
+                                       Icon=gimp\n\
+                                       Terminal=false\n\
+                                       Categories=Graphics;2DGraphics;\n";
+                let _ = fs::write("/mnt/gentoo/usr/share/applications/SynPaint.desktop", desktop_content);
+                println!("       ✓ SynPaint installed");
+            } else {
+                println!("       ⚠ SynPaint binary not found or failed to copy");
+            }
+        }
+
+        if install_fileman {
+            let src = "/usr/share/synth3x/prog/fileman";
+            let dst = "/mnt/gentoo/usr/bin/fileman";
+            if fs::copy(src, dst).is_ok() {
+                let _ = Command::new("chmod").args(["+x", dst]).status();
+                let desktop_content = "[Desktop Entry]\n\
+                                       Type=Application\n\
+                                       Name=File Manager\n\
+                                       Comment=Synth3x File Manager\n\
+                                       Exec=/usr/bin/fileman\n\
+                                       Icon=system-file-manager\n\
+                                       Terminal=false\n\
+                                       Categories=System;FileTransfer;Utility;\n";
+                let _ = fs::write("/mnt/gentoo/usr/share/applications/fileman.desktop", desktop_content);
+                println!("       ✓ Synth3x-FileMng (fileman) installed");
+            } else {
+                println!("       ⚠ Synth3x-FileMng binary not found or failed to copy");
+            }
+        }
+
         fs::create_dir_all("/mnt/gentoo/proc").ok();
         fs::create_dir_all("/mnt/gentoo/sys").ok();
         fs::create_dir_all("/mnt/gentoo/dev").ok();
@@ -1188,8 +1277,8 @@ fn main() {
     println!("     {} {} BOOT.seq{} initializing", DIM, NEON_CYAN, HX);
     println!();
 
-    // [1/10] Safety: boot disk detection
-    show_step(1, 10, "Safety Check — Scanning for boot device...");
+    // [1/11] Safety: boot disk detection
+    show_step(1, 11, "Safety Check — Scanning for boot device...");
     let boot_disk = detect_boot_disk();
     match &boot_disk {
         Some(d) => println!("     {}{}》 {}{} {}flagged as boot disk{}", NEON_YELLOW, BOLD, d, HX, DIM, HX),
@@ -1198,14 +1287,14 @@ fn main() {
     show_hint("Boot disk detection prevents accidental self-installation.");
     std::thread::sleep(std::time::Duration::from_secs(1));
 
-    // [2/10] WiFi setup
+    // [2/11] WiFi setup
     show_banner();
-    show_step(2, 10, "Network Setup (WiFi/Ethernet)");
+    show_step(2, 11, "Network Setup (WiFi/Ethernet)");
     setup_wifi();
 
-    // [3/10] User setup
+    // [3/11] User setup
     show_banner();
-    show_step(3, 10, "User Account Provisioning");
+    show_step(3, 11, "User Account Provisioning");
     let username = prompt_default(
         &format!("     {}┃{} {}Username:{} {}",
             DIM, HX, FG, HX, NEON_CYAN),
@@ -1236,9 +1325,9 @@ fn main() {
         DIM, HX, NEON_GREEN, HX, FG, NEON_GREEN);
     std::thread::sleep(std::time::Duration::from_secs(1));
 
-    // [4/10] Hostname + Timezone + Locale
+    // [4/11] Hostname + Timezone + Locale
     show_banner();
-    show_step(4, 10, "System Configuration");
+    show_step(4, 11, "System Configuration");
 
     let hostname = prompt_default(
         &format!("     {}┃{} {}Hostname:{} {}",
@@ -1262,9 +1351,9 @@ fn main() {
     show_hint("System language and character encoding. Will use UTF-8.");
     std::thread::sleep(std::time::Duration::from_secs(1));
 
-    // [5/10] Drive scan
+    // [5/11] Drive scan
     show_banner();
-    show_step(5, 10, "Storage Topology — Disk Selection");
+    show_step(5, 11, "Storage Topology — Disk Selection");
     show_hint("Select the target disk for installation. ALL DATA on this drive will be ERASED.");
     show_hint("In QEMU with no disk, installer runs in simulation mode (safe to test).");
 
@@ -1313,9 +1402,9 @@ fn main() {
         DIM, HX, NEON_GREEN, HX, FG, NEON_CYAN, drive, drive_info);
     std::thread::sleep(std::time::Duration::from_secs(1));
 
-    // [6/10] Safety check
+    // [6/11] Safety check
     show_banner();
-    show_step(6, 10, "Safety Verification Sequence");
+    show_step(6, 11, "Safety Verification Sequence");
     println!();
     if !simulation {
         check_drive_safety(&drive, boot_disk.as_deref());
@@ -1324,9 +1413,9 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_secs(1));
     }
 
-    // [7/10] DE selection
+    // [7/11] DE selection
     show_banner();
-    show_step(7, 10, "Desktop Environment Selection");
+    show_step(7, 11, "Desktop Environment Selection");
     println!("     {}┌─────────────────────────────────────────────────────┐{}", DIM, HX);
     println!("     {0}│{1}  {2}{3}1.{1} {4}{5}AmnesiaDE{1} {6} (own compositor, recommended){1}",
         DIM, HX, NEON_PURPLE, HX, NEON_CYAN, BOLD, DIM);
@@ -1358,37 +1447,90 @@ fn main() {
         DIM, HX, NEON_GREEN, HX, FG, NEON_CYAN, de_name);
     std::thread::sleep(std::time::Duration::from_secs(1));
 
-    // [8/10] Download files
+    // [8/11] Custom Applications Selection
     show_banner();
-    show_step(8, 10, "Download Installation Files");
+    show_step(8, 11, "Custom Applications Selection");
+    println!("     {}┌─────────────────────────────────────────────────────┐{}", DIM, HX);
+    println!("     {0}│{1}  {2}{3}1.{1} {4}{5}AmnesiaIDE{1} {6}    (Lightweight terminal/GUI text editor){1}",
+        DIM, HX, NEON_PURPLE, HX, NEON_CYAN, BOLD, DIM);
+    println!("     {0}│{1}  {2}{3}2.{1} {4}{5}FastWords{1} {6}     (Minimalist word processor / text app){1}",
+        DIM, HX, NEON_PURPLE, HX, NEON_CYAN, BOLD, DIM);
+    println!("     {0}│{1}  {2}{3}3.{1} {4}{5}SynPaint{1} {6}      (Simple retro-style painting app){1}",
+        DIM, HX, NEON_PURPLE, HX, NEON_CYAN, BOLD, DIM);
+    println!("     {0}│{1}  {2}{3}4.{1} {4}{5}Synth3x-FileMng (GTK+-3 file manager fileman){1}",
+        DIM, HX, NEON_PURPLE, HX, NEON_CYAN, BOLD);
+    println!("     {}└─────────────────────────────────────────────────────┘{}", DIM, HX);
+    println!();
+    show_hint("Select which applications you want to install.");
+    show_hint("Enter numbers separated by spaces (e.g. '1 3 4'), 'all' for all, or 'none' / empty.");
+    println!();
+    let app_choice = prompt_default(
+        &format!("     {}Select apps [default: all]:{} ", FG, NEON_CYAN),
+        "all");
+
+    let choice_lower = app_choice.trim().to_lowercase().replace(',', " ");
+    let (install_amnesia, install_fastwords, install_synpaint, install_fileman) = 
+        if choice_lower == "all" || choice_lower.is_empty() {
+            (true, true, true, true)
+        } else if choice_lower == "none" {
+            (false, false, false, false)
+        } else {
+            let mut amnesia = false;
+            let mut fastwords = false;
+            let mut synpaint = false;
+            let mut fileman = false;
+            for part in choice_lower.split_whitespace() {
+                match part {
+                    "1" => amnesia = true,
+                    "2" => fastwords = true,
+                    "3" => synpaint = true,
+                    "4" => fileman = true,
+                    _ => {}
+                }
+            }
+            (amnesia, fastwords, synpaint, fileman)
+        };
+
+    println!("     {}Selected for installation:{}", DIM, HX);
+    println!("       AmnesiaIDE:      {}", if install_amnesia { format!("{}YES{}", NEON_GREEN, HX) } else { format!("{}NO{}", NEON_RED, HX) });
+    println!("       FastWords:       {}", if install_fastwords { format!("{}YES{}", NEON_GREEN, HX) } else { format!("{}NO{}", NEON_RED, HX) });
+    println!("       SynPaint:        {}", if install_synpaint { format!("{}YES{}", NEON_GREEN, HX) } else { format!("{}NO{}", NEON_RED, HX) });
+    println!("       Synth3x-FileMng: {}", if install_fileman { format!("{}YES{}", NEON_GREEN, HX) } else { format!("{}NO{}", NEON_RED, HX) });
+    std::thread::sleep(std::time::Duration::from_secs(2));
+
+    // [9/11] Download files
+    show_banner();
+    show_step(9, 11, "Download Installation Files");
     show_hint("Stage3 + Portage will be downloaded from Gentoo mirrors. ~400MB total.");
     show_hint("If download fails, check internet: ping -c 1 1.1.1.1");
     println!();
 
-    // [9/10] Partitioning
+    // [10/11] Partitioning
     show_banner();
-    show_step(9, 10, "Partitioning & Formatting");
+    show_step(10, 11, "Partitioning & Formatting");
     println!("     {} {}{}", DIM, drive, HX);
     println!();
     show_hint("Creates GPT table: 512MB EFI (FAT32) + rest as root (ext4).");
     partition_drive(&drive, simulation);
 
-    // [10/10] Base system + DE + Bootloader
+    // [11/11] Base system + DE + Bootloader
     show_banner();
-    show_step(10, 10, "Installing Base System + DE + Bootloader");
+    show_step(11, 11, "Installing Base System + DE + Bootloader");
     println!();
     show_hint("Downloads Stage3 tarball, extracts to target, configures Portage/make.conf.");
     show_hint("Sets up fstab, hostname, timezone, locale, users, sudo, and autologin.");
     println!();
-    install_base(&drive, &username, &password, &hostname, &timezone, &locale, simulation);
+    install_base(&drive, &username, &password, &hostname, &timezone, &locale,
+                 install_amnesia, install_fastwords, install_synpaint, install_fileman,
+                 simulation);
 
     show_banner();
-    println!("     {}{}[10/10]{} {}Deploying {} + Bootloader{}", NEON_CYAN, BOLD, HX, FG, de_name, HX);
+    println!("     {}{}[11/11]{} {}Deploying {} + Bootloader{}", NEON_CYAN, BOLD, HX, FG, de_name, HX);
     println!();
     install_de(de_name, simulation);
 
     show_banner();
-    println!("     {}{}[10/10]{} {}Bootloader Installation (UEFI){}", NEON_CYAN, BOLD, HX, FG, HX);
+    println!("     {}{}[11/11]{} {}Bootloader Installation (UEFI){}", NEON_CYAN, BOLD, HX, FG, HX);
     println!();
     install_bootloader(&drive, simulation);
 
