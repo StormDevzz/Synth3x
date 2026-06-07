@@ -39,3 +39,20 @@ Synth3x is a source-based OS that expects you to understand what is happening un
     Consult the [Portage Troubleshooting Guide](docs/gentoo_troubleshooting.md) for OOM issues, masked packages, and dependency conflicts.
 *   **Want an overview of the architecture?**
     Read the [Gentoo Intro & Philosophy Guide](docs/gentoo_intro.md).
+
+---
+
+## Developer Guides (Mandatory for Developers)
+
+If you are developing applications, packages, or modifications for Synth3x, read these specialized guides:
+
+*   **How do I develop for the Wayland compositor?**
+    Read the [Compositor Developer Guide](docs/dev_compositor.md).
+*   **How do I write and package custom applications?**
+    Read the [Applications Developer Guide](docs/dev_applications.md).
+*   **How does early boot and init sequence work?**
+    Read the [Init System Developer Guide](docs/dev_init.md).
+*   **How do I modify the system installer sequence?**
+    Read the [System Installer Developer Guide](docs/dev_installer.md).
+*   **How do I create custom packaging for the syn package manager?**
+    Read the [Custom Packaging Developer Guide](docs/dev_packaging.md).
