@@ -46,7 +46,7 @@ jobs:
           path: iso/synth3x.iso
 
       - name: Build release body
-        run: cp docs/release_notes.md /tmp/release_body.md
+        run: cp README.md /tmp/release_body.md
 
       - name: Create or Update Release
         if: steps.verify_iso.outputs.exists == 'true'
