@@ -158,7 +158,7 @@ jobs:
                 "text": "${REPO} · ${BRANCH} · ${SHA7}",
                 "icon_url": "https://github.githubassets.com/favicons/favicon-dark.png"
               },
-              "url": "${RUN_URL}",
+              "url": "${COMMIT_URL}",
               "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
             }]
           }
