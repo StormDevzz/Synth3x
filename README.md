@@ -1,5 +1,7 @@
 # Synth3x
 
+[Leer en Español (Spanish)](README_ES.md)
+
 Synth3x is an amnesic, hardened, source-based operating system powered by Gentoo Linux, a custom C/Assembly Wayland compositor (`AmnesiaDE`), and a Rust-based safe process installer.
 
 ---
