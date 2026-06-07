@@ -366,11 +366,11 @@ run: $(INITRAMFS)
 		-append "loglevel=3 console=tty0"
 
 run-iso: iso
-	qemu-system-x86_64 -cdrom iso/synth3x-os.iso -m 1024 -accel kvm \
+	qemu-system-x86_64 -cdrom iso/synth3x.iso -m 1024 -accel kvm \
 		-vga virtio -device virtio-tablet -net nic,model=virtio -net user
 
 run-installer: iso
-	qemu-system-x86_64 -cdrom iso/synth3x-os.iso -m 1024 -accel kvm \
+	qemu-system-x86_64 -cdrom iso/synth3x.iso -m 1024 -accel kvm \
 		-vga virtio -device virtio-tablet -net nic,model=virtio -net user \
 		-append "loglevel=3 console=tty0 installer"
 

@@ -112,7 +112,7 @@ Requirements: gcc, ld, grub-mkrescue, xorriso, mtools,
   ./scripts/build_iso.sh
 
 Run in QEMU:
-  qemu-system-x86_64 -cdrom iso/synth3x-anon.iso -m 1024 -accel kvm
+  qemu-system-x86_64 -cdrom iso/synth3x.iso -m 1024 -accel kvm
 
 ================================================================
                     HARDWARE DETECTION

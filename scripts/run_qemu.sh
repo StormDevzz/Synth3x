@@ -5,8 +5,8 @@ set -e
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$DIR"
 
-ISO_PATH="iso/synth3x-anon.iso"
-DISK_PATH="build/synth3x-anon.qcow2"
+ISO_PATH="iso/synth3x.iso"
+DISK_PATH="build/synth3x.qcow2"
 
 if [ ! -f "$ISO_PATH" ]; then
     echo "  [✗] ISO not found: $ISO_PATH"
@@ -15,7 +15,7 @@ if [ ! -f "$ISO_PATH" ]; then
 fi
 
 echo "  ╔══════════════════════════════════════════════════════════╗"
-echo "  ║   Synth3x-Anon v0.8 — QEMU Virtual Machine              ║"
+echo "  ║   Synth3x — QEMU Virtual Machine                         ║"
 echo "  ║   Memory: 1024MB | VGA: std | Graphics: bochs-drm       ║"
 echo "  ║   Mouse: usb-tablet (works without grab)                 ║"
 echo "  ║   Touchpad: auto-detect | Browser: w3m | syn pkg mgr   ║"
@@ -38,7 +38,7 @@ if ! [ -w /dev/kvm ]; then
     KVM_ACCEL="-cpu Penryn"
 fi
 
-echo "  Booting Synth3x-Anon v0.8..."
+echo "  Booting Synth3x..."
 echo "  Features: syn, w3m browser, touchpad support, Gentoo installer"
 echo "  TIP: Click inside VM window to capture keyboard"
 echo "       Mouse works immediately (no grab needed)"

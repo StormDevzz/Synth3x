@@ -1,14 +1,14 @@
 #!/bin/bash
 # Synth3x-Anon VM Launcher
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
-ISO="$DIR/iso/synth3x-anon.iso"
+ISO="$DIR/iso/synth3x.iso"
 
 if [ ! -f "$ISO" ]; then
     echo "ISO not found. Run 'bash scripts/build_iso.sh' first."
     exit 1
 fi
 
-echo "Starting Synth3x-Anon v0.8 VM..."
+echo "Starting Synth3x VM..."
 echo "  CPU: host (KVM), RAM: 1024M"
 echo "  Graphics: std VGA + usb-tablet (mouse works without grab)"
 echo "  Network: user mode (NAT)"

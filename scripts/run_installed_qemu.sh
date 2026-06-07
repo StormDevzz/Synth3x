@@ -1,11 +1,11 @@
 #!/bin/bash
-# Synth3x-Anon — Boot Installed OS from Virtual Disk
+# Synth3x — Boot Installed OS from Virtual Disk
 set -e
 
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$DIR"
 
-DISK_PATH="build/synth3x-anon.qcow2"
+DISK_PATH="build/synth3x.qcow2"
 
 if [ ! -f "$DISK_PATH" ]; then
     echo "  [✗] Virtual disk not found: $DISK_PATH"
@@ -14,7 +14,7 @@ if [ ! -f "$DISK_PATH" ]; then
 fi
 
 echo "  ╔══════════════════════════════════════════════════════════╗"
-echo "  ║        Synth3x-Anon — Booting Installed Gentoo OS        ║"
+echo "  ║        Synth3x — Booting Installed Gentoo OS             ║"
 echo "  ║        Boot Device: Virtual Hard Drive (/dev/vda)        ║"
 echo "  ║        Memory: 1024MB | VGA: std | Net: User-Mode        ║"
 echo "  ╚══════════════════════════════════════════════════════════╝"

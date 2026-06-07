@@ -2,7 +2,7 @@
 # Synth3x OS — build script
 set -e
 
-DIR="$(cd "$(dirname "$0")" && pwd)"
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$DIR"
 
 echo "  ╔══════════════════════════════════════╗"
@@ -26,17 +26,17 @@ echo "[3/4] Creating ISO..."
 make iso 2>&1
 
 # Done
-if [ -f iso/synth3x-os.iso ]; then
+if [ -f iso/synth3x.iso ]; then
     echo ""
     echo "  ── Synth3x OS ISO ready ──"
-    echo "  File: iso/synth3x-os.iso"
-    echo "  Size: $(du -h iso/synth3x-os.iso | cut -f1)"
+    echo "  File: iso/synth3x.iso"
+    echo "  Size: $(du -h iso/synth3x.iso | cut -f1)"
     echo ""
     echo "  Run in QEMU:"
-    echo "    qemu-system-x86_64 -cdrom iso/synth3x-os.iso -m 512 -accel kvm"
+    echo "    qemu-system-x86_64 -cdrom iso/synth3x.iso -m 512 -accel kvm"
     echo ""
     echo "  Write to USB:"
-    echo "    dd if=iso/synth3x-os.iso of=/dev/sdX bs=4M status=progress"
+    echo "    dd if=iso/synth3x.iso of=/dev/sdX bs=4M status=progress"
     echo ""
 else
     echo "  [✗] ISO creation failed."
