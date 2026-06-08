@@ -99,11 +99,20 @@ static void syn_net(void) {
 static void syn_services(void) {
     pid_t hw=fork();
     if(hw==0){alarm(15);
-        system("for d in /lib/modules/*/;do [ -f \"${d}cfg80211.ko\" ]||continue;"
-               "insmod \"${d}cfg80211.ko\" 2>/dev/null;insmod \"${d}e1000.ko\" 2>/dev/null;"
-               "insmod \"${d}psmouse.ko\" 2>/dev/null;insmod \"${d}bochs.ko\" 2>/dev/null;"
-               "insmod \"${d}virtio-gpu.ko\" 2>/dev/null;break;done 2>/dev/null||true");
-        system("modprobe snd_hda_intel 2>/dev/null||true");
+        system("modprobe cfg80211 2>/dev/null || true");
+        system("modprobe e1000 2>/dev/null || true");
+        system("modprobe e1000e 2>/dev/null || true");
+        system("modprobe r8169 2>/dev/null || true");
+        system("modprobe psmouse 2>/dev/null || true");
+        system("modprobe bochs 2>/dev/null || true");
+        system("modprobe virtio-gpu 2>/dev/null || true");
+        system("modprobe i915 2>/dev/null || true");
+        system("modprobe amdgpu 2>/dev/null || true");
+        system("modprobe nouveau 2>/dev/null || true");
+        system("modprobe snd_hda_intel 2>/dev/null || true");
+        system("modprobe acer_wmi 2>/dev/null || true");
+        system("modprobe thinkpad_acpi 2>/dev/null || true");
+        system("modprobe ideapad_laptop 2>/dev/null || true");
         _exit(0);}
     int st;waitpid(hw,&st,0);
     vga(WIFSIGNALED(st)&&WTERMSIG(st)==SIGALRM?"   [TIMEOUT] hardware modules\n":"   [ OK ]  hardware modules\n");
@@ -118,12 +127,12 @@ static void syn_services(void) {
 
 static void sigchld(int sig){(void)sig;while(waitpid(-1,NULL,WNOHANG)>0);}
 
-static void syn_shell(void) {
+static void syn_shell_on(const char *tty) {
     for(;;){
         pid_t sh=fork();
         if(sh<0){sleep(1);continue;}
         if(sh==0){setsid();
-            int fd=open("/dev/tty1",O_RDWR|O_NOCTTY);
+            int fd=open(tty,O_RDWR|O_NOCTTY);
             if(fd>=0){ioctl(fd,TIOCSCTTY,0);}
             if(fd>=0){dup2(fd,0);dup2(fd,1);dup2(fd,2);if(fd>2)close(fd);}
             setenv("HOME","/root",1);setenv("SHELL","/bin/bash",1);
@@ -220,6 +229,18 @@ int main(int argc, char *argv[]) {
     sigemptyset(&sa.sa_mask); sigaction(SIGCHLD,&sa,NULL);
 
     syn_welcome();
-    syn_shell();
+    pid_t tty1_pid = fork();
+    if (tty1_pid == 0) {
+        syn_shell_on("/dev/tty1");
+        _exit(0);
+    }
+    pid_t serial_pid = fork();
+    if (serial_pid == 0) {
+        syn_shell_on("/dev/ttyS0");
+        _exit(0);
+    }
+    while (1) {
+        sleep(10);
+    }
     return 0;
 }

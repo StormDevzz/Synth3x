@@ -347,6 +347,28 @@ fi
         echo "    Kernel modules: $MODDIR"
         MODDST="$INITRAMFS_DIR/lib/modules/$KVER"
         mkdir -p "$MODDST"
+
+        copy_mod() {
+            local mod="$1"
+            modprobe --show-depends "$mod" 2>/dev/null | grep -o '/[^ ]\+\.ko[^ ]*' | while read -r src; do
+                if [ -f "$src" ]; then
+                    local relpath=$(echo "$src" | sed -r "s|^/(usr/)?lib/modules/[^/]+||")
+                    local dst_file="$INITRAMFS_DIR/lib/modules/${KVER}${relpath}"
+                    dst_file=$(echo "$dst_file" | sed 's/\.zst$//' | sed 's/\.xz$//')
+                    mkdir -p "$(dirname "$dst_file")"
+                    if [ ! -f "$dst_file" ]; then
+                        case "$src" in
+                            *.zst) zstd -dq "$src" -o "$dst_file" 2>/dev/null ;;
+                            *.xz)  xz -dc "$src" > "$dst_file" 2>/dev/null ;;
+                            *)     cp "$src" "$dst_file" 2>/dev/null ;;
+                        esac
+                        echo "      ✓ $(basename "$dst_file")"
+                    fi
+                fi
+            done
+        }
+
+        echo "  -- Resolving and copying kernel modules..."
         for mod in virtio_net net_failover failover e1000 e1000e r8169 \
                    bochs virtio-gpu virtio_dma_buf ttm serio_raw psmouse mousedev virtio_input \
                    virtio virtio_ring virtio_pci virtio_mmio \
@@ -354,16 +376,10 @@ fi
                    ath ath3k ath5k ath9k ath9k_hw ath9k_common ath10k_core ath10k_pci \
                    rtl8xxxu rtw88_core rtw88_8822ce rtw88_8821ce \
                    rtlwifi rtl_pci rtl8192ce rtl8192se rtl8723ae rtl8723be rtl8188ee \
-                   i2c-piix4 i2c-i801 i2c-hid; do
-            src=$(find "$MODDIR" -name "${mod}.ko*" -type f 2>/dev/null | head -1)
-            if [ -n "$src" ]; then
-                case "$src" in
-                    *.zst) zstd -dq "$src" -o "$MODDST/${mod}.ko" 2>/dev/null ;;
-                    *.xz)  xz -dc "$src" > "$MODDST/${mod}.ko" 2>/dev/null ;;
-                    *)     cp "$src" "$MODDST/${mod}.ko" 2>/dev/null ;;
-                esac
-                echo "    ✓ ${mod}.ko"
-            fi
+                   i2c-piix4 i2c-i801 i2c-hid \
+                   i915 amdgpu nouveau snd_hda_intel \
+                   acer_wmi thinkpad_acpi ideapad_laptop; do
+            copy_mod "$mod"
         done
         depmod -b "$INITRAMFS_DIR" "$KVER" 2>/dev/null && echo "    ✓ modules.dep generated" || true
     fi

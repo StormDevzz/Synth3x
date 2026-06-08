@@ -169,69 +169,41 @@ $(INITRAMFS): $(COMPOSITOR) $(INIT) $(SYN_CMD) $(WHO_BINS) $(CHECK_BINS) $(CMD_B
 	# udhcpc script — sets IP/route/DNS when lease is obtained
 	@printf '#!/bin/sh\ncase "$$1" in\n  bound|renew)\n    ip addr add $$ip/$$mask dev $$interface 2>/dev/null\n    [ -n "$$router" ] && ip route add default via $$router dev $$interface 2>/dev/null\n    for ns in $$dns; do echo "nameserver $$ns"; done > /etc/resolv.conf 2>/dev/null\n    ;;\n  deconfig|nak)\n    ip addr flush dev $$interface 2>/dev/null\n    ;;\nesac\n' > $(BUILD)/initramfs/usr/share/udhcpc/default.script
 	@chmod +x $(BUILD)/initramfs/usr/share/udhcpc/default.script
-	# Copy NIC + WiFi kernel modules for ISO kernel
+	# Copy NIC, WiFi, and GPU modules with dependencies
 	@KVER=$(ISO_KVER); \
-	MODDIR=""; \
-	for d in /lib/modules/$$KVER /usr/lib/modules/$$KVER; do \
-		[ -d "$$d" ] && MODDIR="$$d" && break; \
+	copy_mod() { \
+		mod="$$1"; \
+		modprobe --show-depends "$$mod" 2>/dev/null | grep -o '/[^ ]\+\.ko[^ ]*' | while read -r src; do \
+			if [ -f "$$src" ]; then \
+				relpath=$$({ echo "$$src" | sed -r "s|^/(usr/)?lib/modules/[^/]+||"; }); \
+				dst_file="$(BUILD)/initramfs/lib/modules/$$KVER$$relpath"; \
+				dst_file=$$(echo "$$dst_file" | sed 's/\.zst$$//' | sed 's/\.xz$$//'); \
+				mkdir -p "$$(dirname "$$dst_file")"; \
+				if [ ! -f "$$dst_file" ]; then \
+					case "$$src" in \
+						*.zst) zstd -dq "$$src" -o "$$dst_file" 2>/dev/null ;; \
+						*.xz)  xz -dc "$$src" > "$$dst_file" 2>/dev/null ;; \
+						*)     cp "$$src" "$$dst_file" 2>/dev/null ;; \
+					esac; \
+					echo "  ── Module: $$(basename "$$dst_file")"; \
+				fi; \
+			fi; \
+		done; \
+	}; \
+	for m in virtio_net net_failover failover e1000 e1000e r8169 \
+		bochs virtio-gpu virtio_dma_buf ttm serio_raw psmouse mousedev virtio_input \
+		virtio virtio_ring virtio_pci virtio_mmio \
+		cfg80211 mac80211 iwlwifi iwldvm iwlmvm \
+		ath ath3k ath5k ath9k ath9k_hw ath9k_common ath10k_core ath10k_pci \
+		rtl8xxxu rtw88_core rtw88_8822ce rtw88_8821ce \
+		rtlwifi rtl_pci rtl8192ce rtl8192se rtl8723ae rtl8723be rtl8188ee \
+		i2c-piix4 i2c-i801 i2c-hid \
+		i915 amdgpu nouveau snd_hda_intel \
+		acer_wmi thinkpad_acpi ideapad_laptop; do \
+		copy_mod "$$m"; \
 	done; \
-	if [ -n "$$MODDIR" ]; then \
-		MODDST="$(BUILD)/initramfs/lib/modules/$$KVER"; \
-		mkdir -p "$$MODDST"; \
-		# Ethernet modules \
-		for mod in virtio_net net_failover failover e1000 e1000e r8169; do \
-			src=$$(find "$$MODDIR" -name "$${mod}.ko*" -type f 2>/dev/null | head -1); \
-			if [ -n "$$src" ]; then \
-				case "$$src" in \
-					*.zst) zstd -dq "$$src" -o "$$MODDST/$${mod}.ko" 2>/dev/null;; \
-					*.xz)  xz -dc "$$src" > "$$MODDST/$${mod}.ko" 2>/dev/null;; \
-					*)     cp -n "$$src" "$$MODDST/$${mod}.ko" 2>/dev/null;; \
-				esac; \
-				echo "  ── Module: $${mod}.ko"; \
-			fi; \
-		done; \
-		# WiFi core: cfg80211 + mac80211 \
-		for wcore in cfg80211 mac80211; do \
-			src=$$(find "$$MODDIR" -path "*/net/$${wcore}.ko*" -o -path "*/net/wireless/$${wcore}.ko*" -type f 2>/dev/null | head -1); \
-			if [ -z "$$src" ]; then src=$$(find "$$MODDIR" -name "$${wcore}.ko*" -type f 2>/dev/null | head -1); fi; \
-			if [ -n "$$src" ]; then \
-				case "$$src" in \
-					*.zst) zstd -dq "$$src" -o "$$MODDST/$${wcore}.ko" 2>/dev/null && echo "  ── Module: $${wcore}.ko";; \
-					*.xz)  xz -dc "$$src" > "$$MODDST/$${wcore}.ko" 2>/dev/null && echo "  ── Module: $${wcore}.ko";; \
-					*)     cp -n "$$src" "$$MODDST/$${wcore}.ko" 2>/dev/null && echo "  ── Module: $${wcore}.ko";; \
-				esac; \
-			fi; \
-		done; \
-		# Common WiFi drivers: Intel + Atheros + Realtek \
-		for wpath in \
-			"drivers/net/wireless/intel/iwlwifi/iwlwifi.ko" \
-			"drivers/net/wireless/intel/iwlwifi/mvm/iwlmvm.ko" \
-			"drivers/net/wireless/intel/iwlwifi/mld/iwlmld.ko" \
-			"drivers/net/wireless/intel/iwlwifi/dvm/iwldvm.ko" \
-			"drivers/net/wireless/intel/iwlegacy/iwlegacy.ko" \
-			"drivers/net/wireless/intel/iwlegacy/iwl3945.ko" \
-			"drivers/net/wireless/intel/iwlegacy/iwl4965.ko" \
-			"drivers/net/wireless/ath/ath.ko" \
-			"drivers/net/wireless/ath/ath9k/ath9k_hw.ko" \
-			"drivers/net/wireless/ath/ath9k/ath9k_common.ko" \
-			"drivers/net/wireless/ath/ath9k/ath9k.ko" \
-			"drivers/net/wireless/ath/ath10k/ath10k_core.ko" \
-			"drivers/net/wireless/ath/ath10k/ath10k_pci.ko" \
-			"drivers/net/wireless/realtek/rtl8xxxu/rtl8xxxu.ko" \
-			"drivers/net/wireless/realtek/rtw88/rtw88_core.ko" \
-			"drivers/net/wireless/realtek/rtw88/rtw88_8822ce.ko"; do \
-			src=$$(find "$$MODDIR" -path "*/$${wpath}.zst" -o -path "*/$${wpath}" -type f 2>/dev/null | head -1); \
-			if [ -n "$$src" ]; then \
-				dst_mod=$$(basename $${wpath}); \
-				case "$$src" in \
-					*.zst) zstd -dq "$$src" -o "$$MODDST/$${dst_mod}" 2>/dev/null && echo "  ── Module: $${dst_mod}";; \
-					*)     cp -n "$$src" "$$MODDST/$${dst_mod}" 2>/dev/null && echo "  ── Module: $${dst_mod}";; \
-				esac; \
-			fi; \
-		done; \
-		depmod -b "$(BUILD)/initramfs" $$KVER 2>/dev/null; \
-		echo "  ── modules.dep generated for $$KVER"; \
-	fi
+	depmod -b "$(BUILD)/initramfs" $$KVER 2>/dev/null; \
+	echo "  ── modules.dep generated for $$KVER";
 	# Copy firmware blobs for WiFi modules — auto-detect from module requests
 	@mkdir -p $(BUILD)/initramfs/lib/firmware
 	@mkdir -p $(BUILD)/fw_staging
