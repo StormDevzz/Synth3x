@@ -1,6 +1,6 @@
 # Synth3x
 
-[Leer en Español (Spanish)](README_ES.md)
+[Leer en Español (Spanish)](README_ES.md) | [阅读中文 (Chinese)](README_ZH.md)
 
 <!-- git configuration update -->
 
