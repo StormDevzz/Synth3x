@@ -209,6 +209,25 @@ echo -e "     ${DIM}┃${HX} ${NEON_GREEN}✓${HX} ${FG}User:${HX} ${NEON_CYAN}$
 echo -e "     ${DIM}┃${HX} ${NEON_GREEN}✓${HX} ${FG}Sudo:${HX} ${NEON_GREEN}enabled${HX}"
 sleep 1
 
+# ─── ANONYMITY SETUP ───
+show_banner
+echo -e "     ${NEON_CYAN}${BOLD}[Anonymity Level Setup]${HX} ${FG}Anonymity Configuration${HX}"
+echo ""
+echo -e "     ${DIM}┌─────────────────────────────────────────────────────┐${HX}"
+echo -e "     ${DIM}│${HX}  ${NEON_PURPLE}1.${HX} ${NEON_CYAN}${BOLD}None${HX}     ${DIM}(Standard networking - no Tor/identity rotation)${HX}"
+echo -e "     ${DIM}│${HX}  ${NEON_PURPLE}2.${HX} ${NEON_CYAN}${BOLD}Extreme${HX}  ${DIM}(MAC/hostname rotation, Tor transparent proxy)${HX}"
+echo -e "     ${DIM}└─────────────────────────────────────────────────────┘${HX}"
+echo ""
+printf "     ${FG}Select Anonymity Level [default: Extreme]:${HX} "
+read -r ANONYMITY_CHOICE
+if [ "$ANONYMITY_CHOICE" = "1" ]; then
+    ANONYMITY_LEVEL="none"
+else
+    ANONYMITY_LEVEL="extreme"
+fi
+echo -e "     ${DIM}┃${HX} ${NEON_GREEN}✓${HX} ${FG}Anonymity:${HX} ${NEON_CYAN}${ANONYMITY_LEVEL}${HX}"
+sleep 1
+
 # ─── DRIVE SCAN ───
 show_banner
 echo -e "     ${NEON_CYAN}${BOLD}[3/9]${HX} ${FG}Scanning storage topology...${HX}"
@@ -352,11 +371,27 @@ if [ "$SIMULATION_MODE" = false ]; then
         echo -e "     ${NEON_GREEN}» Online. Fetching latest Gentoo Stage3 OpenRC...${HX}"
         
         # Download Stage3 using wget or curl
-        local stage3_url="https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/current-stage3-amd64-openrc/stage3-amd64-openrc-latest.tar.xz"
+        local stage3_url="https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/current-stage3-amd64-hardened-openrc/stage3-amd64-hardened-openrc-latest.tar.xz"
+        local sha256_url="${stage3_url}.sha256"
         echo -e "     ${DIM}URL: ${stage3_url}${HX}"
         wget -q --show-progress -O /mnt/gentoo/stage3.tar.xz "$stage3_url" || \
         curl -L -o /mnt/gentoo/stage3.tar.xz "$stage3_url" || \
         safety_abort "Failed to download Gentoo Stage3 tarball."
+
+        echo -e "     ${NEON_CYAN}》 Fetching SHA256 digest...${HX}"
+        wget -q -O /mnt/gentoo/stage3.tar.xz.sha256 "$sha256_url" || \
+        curl -L -o /mnt/gentoo/stage3.tar.xz.sha256 "$sha256_url" || \
+        safety_abort "Failed to download SHA256 verification file."
+
+        echo -e "     ${NEON_CYAN}》 Verifying Stage3 integrity (SHA256)...${HX}"
+        local expected_hash=$(awk '{print $1}' /mnt/gentoo/stage3.tar.xz.sha256 | head -n 1)
+        local calculated_hash=$(sha256sum /mnt/gentoo/stage3.tar.xz | awk '{print $1}')
+        if [ "$expected_hash" != "$calculated_hash" ]; then
+            rm -f /mnt/gentoo/stage3.tar.xz /mnt/gentoo/stage3.tar.xz.sha256
+            safety_abort "SHA256 verification failed! Downloaded Stage3 is corrupted or compromised."
+        fi
+        echo -e "     ${NEON_GREEN}» Integrity verified (SHA256: ${expected_hash:0:16}...)${HX}"
+        rm -f /mnt/gentoo/stage3.tar.xz.sha256
         
         echo -e "     ${NEON_GREEN}» Extracting Stage3 tarball...${HX}"
         tar -xpf /mnt/gentoo/stage3.tar.xz -C /mnt/gentoo --xattrs-include='*.*' --numeric-owner || \
@@ -534,7 +569,7 @@ if [ "$SIMULATION_MODE" = false ]; then
 
     echo -ne "     ${NEON_PURPLE}⌛${HX} ${DIM}GRUB config...${HX} "
     mkdir -p /mnt/gentoo/boot/grub
-    cat << 'EOF' > /mnt/gentoo/boot/grub/grub.cfg
+    cat << EOF > /mnt/gentoo/boot/grub/grub.cfg
 set timeout=5
 set default=0
 insmod all_video
@@ -543,11 +578,11 @@ insmod fat
 insmod ext2
 
 menuentry "★ Synth3x-Anon v0.9 (Wayland Compositor) ★" {
-    linux /vmlinuz-linux loglevel=3 console=tty0
+    linux /vmlinuz-linux loglevel=3 console=tty0 anonymity=${ANONYMITY_LEVEL}
     initrd /initrd.img
 }
 menuentry "★ Synth3x-Anon (Debug Mode) ★" {
-    linux /vmlinuz-linux loglevel=7 console=tty0
+    linux /vmlinuz-linux loglevel=7 console=tty0 anonymity=${ANONYMITY_LEVEL}
     initrd /initrd.img
 }
 menuentry "Reboot" { reboot }

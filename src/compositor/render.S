@@ -8,51 +8,32 @@
 
 /* ─── asm_fill_rect32 ─────────────────────────────────────────────
  * void asm_fill_rect32(uint32_t *buf, int stride, int w, int h, uint32_t color);
- * Fill a rectangle with a solid 32-bit color using REP STOSD.
+ * Fill a rectangle with a solid 32-bit color.
  */
 .global asm_fill_rect32
 asm_fill_rect32:
-    pushq   %rbp
     pushq   %rbx
-    pushq   %r12
-    pushq   %r13
 
-    movl    %edx,   %r10d         /* w */
-    movl    %ecx,   %r11d         /* h */
-    movl    %r8d,   %r12d         /* color */
+    movl    %edx,   %eax          /* w */
+    shll    $2,     %eax          /* w * 4 (bytes per row) */
+    movl    %esi,   %ebx          /* stride */
+    shll    $2,     %ebx          /* stride * 4 */
+    subl    %eax,   %ebx          /* ebx = (stride - w) * 4 (row offset in bytes) */
+    movslq  %ebx,   %rbx          /* sign extend to 64-bit */
 
-    movl    %esi,   %eax          /* stride in pixels */
-    mull    %r10d                 /* bytes per row = stride * 4 (we use stride as pixel stride) */
-    movl    %eax,   %ebx          /* row byte stride */
-
-    xorl    %r13d,  %r13d
 .Lfill_row:
-    movq    %rdi,   %rax
-    movl    %r10d,  %ecx
-    movl    %r12d,  %eax
-    rep     stosl
+    movl    %edx,   %r9d          /* loop counter for row (w) */
+.Lfill_pixel:
+    movl    %r8d,   (%rdi)
+    addq    $4,     %rdi
+    decl    %r9d
+    jnz     .Lfill_pixel
 
-    addl    %ebx,   %edi          /* skip to next row (edi is now wrong, fix below) */
-    /* Actually, rep stosl advances rdi by ecx*4. So we need to compute the next row start */
-    /* Let's use a different approach - compute row start each time */
-    decl    %r11d
-    jz      .Lfill_done
+    addq    %rbx,   %rdi          /* skip to next row (safe 64-bit pointer arithmetic) */
+    decl    %ecx                  /* decrement h */
+    jnz     .Lfill_row
 
-    movl    %esi,   %eax
-    addl    %r13d,  %eax
-    movl    %eax,   %r13d
-    movq    %rdi,   %rcx
-    /* rdi already points past the row from rep stosl, we need to add (stride - w) more */
-    subl    %r10d,  %esi
-    leaq    (%rdi,%rsi,4), %rdi
-    addl    %r10d,  %esi
-    jmp     .Lfill_row
-
-.Lfill_done:
-    popq    %r13
-    popq    %r12
     popq    %rbx
-    popq    %rbp
     ret
 
 /* ─── asm_fill_hline32 ────────────────────────────────────────────
@@ -60,14 +41,18 @@ asm_fill_rect32:
  */
 .global asm_fill_hline32
 asm_fill_hline32:
-    movl    %ecx,   %eax          /* y */
-    imull   %esi,   %eax          /* y * stride */
-    addl    %edx,   %eax          /* + x */
-    leaq    (%rdi,%rax,4), %rdi
+    pushq   %rbx
+    movslq  %ecx,   %rax          /* y (64-bit) */
+    movslq  %esi,   %rbx          /* stride (64-bit) */
+    imulq   %rbx,   %rax          /* y * stride */
+    movslq  %edx,   %rdx          /* x (64-bit) */
+    addq    %rdx,   %rax          /* + x */
+    leaq    (%rdi,%rax,4), %rdi   /* rdi = buf + (y * stride + x) * 4 */
 
     movl    %r8d,   %ecx          /* w */
     movl    %r9d,   %eax          /* color */
     rep     stosl
+    popq    %rbx
     ret
 
 /* ─── asm_copy_rect32 ─────────────────────────────────────────────
@@ -77,46 +62,39 @@ asm_fill_hline32:
  */
 .global asm_copy_rect32
 asm_copy_rect32:
-    pushq   %rbp
     pushq   %rbx
     pushq   %r12
     pushq   %r13
-    pushq   %r14
 
-    movl    %r8d,   %r10d         /* w */
-    movl    %r9d,   %r11d         /* h */
+    movl    %esi,   %r12d         /* r12d = dst_stride */
+    movl    %ecx,   %r13d         /* r13d = src_stride */
 
-    /* args on stack after 6th: dst_stride in 16(%rbp), src_stride in 24(%rbp) */
-    movl    16(%rbp), %r12d       /* dst_stride */
-    movl    24(%rbp), %r13d       /* src_stride */
+    /* Calculate row offsets in bytes */
+    /* dst offset = (dst_stride - w) * 4 */
+    /* src offset = (src_stride - w) * 4 */
+    subl    %r8d,   %r12d         /* dst_stride - w */
+    shll    $2,     %r12d         /* (dst_stride - w) * 4 */
+    movslq  %r12d,  %r12          /* dst offset */
 
-    xorl    %r14d,  %r14d
+    subl    %r8d,   %r13d         /* src_stride - w */
+    shll    $2,     %r13d         /* (src_stride - w) * 4 */
+    movslq  %r13d,  %r13          /* src offset */
+
+    movq    %rdx,   %rsi          /* rsi = src pointer */
+
 .Lcpy_row:
-    movq    %rdi,   %rax
-    movq    %rdx,   %rsi
-    movl    %r10d,  %ecx
+    movl    %r8d,   %ecx          /* ecx = w */
     rep     movsl
 
-    addl    %r12d,  %r12d
-    addl    %r12d,  %r12d         /* dst_stride * 4 */
-    addq    %rcx,   %rdi
-    subl    %r10d,  %r12d
-    shrl    $2,     %r12d
+    addq    %r12,   %rdi          /* dst = dst + dst_offset */
+    addq    %r13,   %rsi          /* src = src + src_offset */
 
-    addl    %r13d,  %r13d
-    addl    %r13d,  %r13d
-    addq    %rcx,   %rsi
-    subl    %r10d,  %r13d
-    shrl    $2,     %r13d
-
-    decl    %r11d
+    decl    %r9d                  /* decrement h */
     jnz     .Lcpy_row
 
-    popq    %r14
     popq    %r13
     popq    %r12
     popq    %rbx
-    popq    %rbp
     ret
 
 /* ─── asm_blend_rect32 ────────────────────────────────────────────
@@ -131,88 +109,91 @@ asm_blend_rect32:
     pushq   %r12
     pushq   %r13
     pushq   %r14
+    pushq   %r15
 
-    movl    %edx,   %r10d         /* w */
-    movl    %ecx,   %r11d         /* h */
-    movl    %r8d,   %r12d         /* color */
+    movl    %edx,   %r10d         /* r10d = w */
+    movl    %ecx,   %r11d         /* r11d = h */
 
-    movzbl  %r12b,  %eax          /* b */
-    movzbl  %r12b,  %edx
-    shrl    $8,     %r12d
-    movzbl  %r12b,  %ecx          /* g */
-    movzbl  %r12b,  %ebx
-    shrl    $8,     %r12d
-    movzbl  %r12b,  %r8d          /* r */
-    shrl    $8,     %r12d
-    movzbl  %r12b,  %r9d          /* a */
-    movl    %r9d,   %r12d
+    /* Extract constant source components from color (%r8d) */
+    movl    %r8d,   %eax
+    movzbl  %al,    %r14d         /* r14d = src_b */
+    shrl    $8,     %eax
+    movzbl  %al,    %r13d         /* r13d = src_g */
+    shrl    $8,     %eax
+    movzbl  %al,    %r12d         /* r12d = src_r */
+    shrl    $8,     %eax
+    movzbl  %al,    %r9d          /* r9d  = src_a (alpha) */
 
-    /* Reconstruct color from components for the blend loop */
-    shll    $24,    %r9d
-    shll    $16,    %r8d
-    shll    $8,     %ecx
-    orl     %ecx,   %r8d
-    orl     %ebx,   %r8d
-    orl     %r9d,   %r8d
-    movl    %r8d,   %r12d         /* full color */
+    /* Calculate row offset in bytes: r15 = (stride - w) * 4 */
+    movl    %esi,   %r15d
+    subl    %r10d,  %r15d
+    shll    $2,     %r15d
+    movslq  %r15d,  %r15          /* r15 = 64-bit offset */
 
-    /* alpha in r9d */
-    movzbl  %r12b,  %r9d
-    shrl    $24,    %r12d
-    xchgl   %r9d,   %r12d
-    /* r9d = alpha, r12d = color */
-
-    xorl    %r13d,  %r13d
 .Lblend_row:
-    movl    %r10d,  %r14d
+    movl    %r10d,  %r8d          /* r8d = loop counter (w) */
 .Lblend_px:
-    movl    (%rdi), %eax
-    movzbl  %r9b,   %ecx          /* alpha */
-    movzbl  %r12b,  %ebx          /* src_b */
-    movzbl  %al,    %edx          /* dst_b */
-    imull   %ecx,   %ebx
-    imull   $255,   %edx
-    subl    %ecx,   %edx
+    movl    (%rdi), %eax          /* eax = dst_color (0xFF_RR_GG_BB) */
+
+    /* Blend Blue */
+    movzbl  %r9b,   %ecx          /* ecx = alpha */
+    movl    %r14d,  %ebx          /* ebx = src_b */
+    imull   %ecx,   %ebx          /* ebx = src_b * alpha */
+
+    movzbl  %al,    %edx          /* edx = dst_b */
+    imull   $255,   %edx          /* edx = dst_b * 255 */
+
+    movzbl  %al,    %ebp          /* temp ebp = dst_b */
+    imull   %ecx,   %ebp          /* temp = dst_b * alpha */
+    subl    %ebp,   %edx          /* edx = dst_b * (255 - alpha) */
     addl    %ebx,   %edx
-    shrl    $8,     %edx
+    shrl    $8,     %edx          /* edx = new_b */
 
-    movzbl  %r12b,  %ebx
-    shrl    $8,     %r12d
-    movzbl  %r12b,  %ebx          /* src_g */
-    movzbl  %ah,    %ecx          /* dst_g */
-    movzbl  %r9b,   %r8d
-    imull   %r8d,   %ebx
-    imull   $255,   %ecx
-    subl    %r8d,   %ecx
-    addl    %ebx,   %ecx
-    shrl    $8,     %ecx
-    shll    $8,     %ecx
-    orl     %ecx,   %edx
-    movzbl  %r12b,  %ebx
-    shrl    $8,     %r12d
-    movzbl  %r12b,  %ebx          /* src_r */
+    /* Blend Green */
+    movl    %r13d,  %ebx          /* ebx = src_g */
+    imull   %ecx,   %ebx          /* ebx = src_g * alpha */
+
+    movzbl  %ah,    %ebp          /* ebp = dst_g */
+    movl    %ebp,   %eax          /* eax = dst_g */
+    imull   $255,   %ebp          /* ebp = dst_g * 255 */
+    imull   %ecx,   %eax          /* eax = dst_g * alpha */
+    subl    %eax,   %ebp          /* ebp = dst_g * (255 - alpha) */
+    addl    %ebx,   %ebp          /* ebp = new_g * 256 */
+    shrl    $8,     %ebp
+    shll    $8,     %ebp
+    orl     %ebp,   %edx          /* merge green into edx */
+
+    /* Blend Red */
+    movl    %r12d,  %ebx          /* ebx = src_r */
+    imull   %ecx,   %ebx          /* ebx = src_r * alpha */
+
+    movl    (%rdi), %eax          /* reload dst_color to extract Red */
     shrl    $16,    %eax
-    movzbl  %ah,    %ecx          /* dst_r */
-    movzbl  %r9b,   %r8d
-    imull   %r8d,   %ebx
-    imull   $255,   %ecx
-    subl    %r8d,   %ecx
-    addl    %ebx,   %ecx
-    shrl    $8,     %ecx
-    shll    $16,    %ecx
-    orl     %ecx,   %edx
+    movzbl  %al,    %ebp          /* ebp = dst_r */
+    movl    %ebp,   %eax          /* eax = dst_r */
+    imull   $255,   %ebp          /* ebp = dst_r * 255 */
+    imull   %ecx,   %eax          /* eax = dst_r * alpha */
+    subl    %eax,   %ebp          /* ebp = dst_r * (255 - alpha) */
+    addl    %ebx,   %ebp
+    shrl    $8,     %ebp
+    shll    $16,    %ebp
+    orl     %ebp,   %edx          /* merge red into edx */
 
-    movb    $0xFF,  %dl
+    /* Force alpha to 0xFF */
+    orl     $0xFF000000, %edx
+
+    /* Write back pixel */
     movl    %edx,   (%rdi)
     addq    $4,     %rdi
 
-    decl    %r14d
+    decl    %r8d
     jnz     .Lblend_px
 
-    addl    %esi,   %edi          /* stride to next row */
+    addq    %r15,   %rdi          /* stride to next row */
     decl    %r11d
     jnz     .Lblend_row
 
+    popq    %r15
     popq    %r14
     popq    %r13
     popq    %r12

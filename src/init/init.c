@@ -79,21 +79,56 @@ static void rand_mac(const char *ifname) {
     ioctl(s,SIOCSIFHWADDR,&ifr); close(s);
 }
 
+static int get_anonymity_mode(void) {
+    // 0 = Extreme (default), 1 = None
+    int fd = open("/proc/cmdline", O_RDONLY);
+    if (fd < 0) return 0;
+    char buf[1024];
+    int n = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+    if (n > 0) {
+        buf[n] = 0;
+        if (strstr(buf, "anonymity=none")) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void syn_net(void) {
-    vga(" * Randomizing network identity ...\n");
-    srand(time(NULL)^getpid());
-    char hn[32]; snprintf(hn,sizeof(hn),"synth-%04x",rand()%0xffff);
-    sethostname(hn,strlen(hn));
-    DIR*d=opendir("/sys/class/net");
-    if(d){struct dirent*e;while((e=readdir(d))){
-        if(strcmp(e->d_name,".")==0||strcmp(e->d_name,"..")==0||strcmp(e->d_name,"lo")==0)continue;
-        rand_mac(e->d_name);}closedir(d);}
+    int anon = (get_anonymity_mode() == 0);
+    if (anon) {
+        vga(" * Randomizing network identity ...\n");
+        srand(time(NULL)^getpid());
+        char hn[32]; snprintf(hn,sizeof(hn),"synth-%04x",rand()%0xffff);
+        sethostname(hn,strlen(hn));
+        DIR*d=opendir("/sys/class/net");
+        if(d){struct dirent*e;while((e=readdir(d))){
+            if(strcmp(e->d_name,".")==0||strcmp(e->d_name,"..")==0||strcmp(e->d_name,"lo")==0)continue;
+            rand_mac(e->d_name);}closedir(d);}
+        vga("   [ OK ]  network identity randomized\n");
+    } else {
+        vga(" * Setting network identity (standard mode) ...\n");
+        char hn[64] = "synth3x";
+        int fd = open("/etc/hostname", O_RDONLY);
+        if (fd >= 0) {
+            int len = read(fd, hn, sizeof(hn) - 1);
+            if (len > 0) {
+                hn[len] = 0;
+                char *nl = strchr(hn, '\n');
+                if (nl) *nl = 0;
+            }
+            close(fd);
+        }
+        sethostname(hn, strlen(hn));
+        vga("   [ OK ]  hostname set\n");
+    }
+
     int s=socket(AF_INET,SOCK_DGRAM,0);
     if(s>=0){struct ifreq ifr;memset(&ifr,0,sizeof(ifr));strcpy(ifr.ifr_name,"lo");
         if(ioctl(s,SIOCGIFFLAGS,&ifr)>=0){ifr.ifr_flags|=IFF_UP|IFF_RUNNING;ioctl(s,SIOCSIFFLAGS,&ifr);}close(s);}
     int rf=open("/etc/resolv.conf",O_WRONLY|O_CREAT|O_TRUNC,0644);
     if(rf>=0){write(rf,"nameserver 1.1.1.1\nnameserver 8.8.8.8\n",38);close(rf);}
-    vga("   [ OK ]  network identity randomized\n");
 }
 
 static void syn_services(void) {
@@ -117,8 +152,13 @@ static void syn_services(void) {
     int st;waitpid(hw,&st,0);
     vga(WIFSIGNALED(st)&&WTERMSIG(st)==SIGALRM?"   [TIMEOUT] hardware modules\n":"   [ OK ]  hardware modules\n");
 
-    if(fork()==0){execl("/usr/sbin/nft","nft","-f","/etc/nftables.rules",NULL);_exit(1);}
-    vga("   [ OK ]  firewall (nftables)\n");
+    int anon = (get_anonymity_mode() == 0);
+    if (anon) {
+        if(fork()==0){execl("/usr/sbin/nft","nft","-f","/etc/nftables.rules",NULL);_exit(1);}
+        vga("   [ OK ]  firewall (nftables transparent proxy)\n");
+    } else {
+        vga("   [ SKIP ] firewall transparent proxy (None anonymity)\n");
+    }
 
     /* Launch Rust service manager */
     pid_t svc=fork();

@@ -719,9 +719,30 @@ fn partition_drive(drive: &str, simulation: bool) {
     std::thread::sleep(std::time::Duration::from_secs(1));
 }
 
+fn verify_sha256(file_path: &str, sha256_path: &str) -> bool {
+    let sha256_content = fs::read_to_string(sha256_path).unwrap_or_default();
+    let expected = match sha256_content.split_whitespace().next() {
+        Some(h) if h.len() == 64 => h,
+        _ => return false,
+    };
+
+    let output = Command::new("sha256sum")
+        .arg(file_path)
+        .output();
+    
+    match output {
+        Ok(out) => {
+            let out_str = String::from_utf8_lossy(&out.stdout);
+            let calculated = out_str.split_whitespace().next().unwrap_or("");
+            calculated == expected
+        }
+        _ => false,
+    }
+}
+
 /// ─── Download and install Stage3 via C downloader ───
 fn download_stage3() -> bool {
-    println!("     {}Downloading Gentoo Stage3 via C downloader...{}", NEON_CYAN, HX);
+    println!("     {}Downloading Gentoo Hardened Stage3 via C downloader...{}", NEON_CYAN, HX);
 
     let status = Command::new("/usr/bin/synth3x-downloader")
         .arg("--stage3")
@@ -729,15 +750,16 @@ fn download_stage3() -> bool {
 
     match status {
         Ok(s) if s.success() => {
-            println!("     {}✓ Stage3 downloaded and extracted{}", NEON_GREEN, HX);
+            println!("     {}✓ Hardened Stage3 downloaded and extracted{}", NEON_GREEN, HX);
             return true;
         }
         _ => {
-            println!("     {}[WARN] C downloader not available, using wget fallback{}", NEON_YELLOW, HX);
+            println!("     {}[WARN] C downloader failed or not available, using wget fallback{}", NEON_YELLOW, HX);
         }
     }
 
-    let stage3_url = "https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/current-stage3-amd64-openrc/stage3-amd64-openrc-latest.tar.xz";
+    let stage3_url = "https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/current-stage3-amd64-hardened-openrc/stage3-amd64-hardened-openrc-latest.tar.xz";
+    let sha256_url = format!("{}.sha256", stage3_url);
     println!("     {}URL: {}{}", DIM, stage3_url, HX);
 
     let download = Command::new("wget")
@@ -747,26 +769,47 @@ fn download_stage3() -> bool {
             .args(["-L", "-o", "/mnt/gentoo/stage3.tar.xz", stage3_url])
             .status());
 
-    match download {
+    if !matches!(download, Ok(s) if s.success()) {
+        println!("     {}[ERROR] Failed to download Stage3{}", NEON_RED, HX);
+        return false;
+    }
+
+    println!("     {}Downloading SHA256 checksum...{}", NEON_CYAN, HX);
+    let download_sha256 = Command::new("wget")
+        .args(["-q", "-O", "/mnt/gentoo/stage3.tar.xz.sha256", &sha256_url])
+        .status()
+        .or_else(|_| Command::new("curl")
+            .args(["-L", "-o", "/mnt/gentoo/stage3.tar.xz.sha256", &sha256_url])
+            .status());
+
+    if !matches!(download_sha256, Ok(s) if s.success()) {
+        println!("     {}[ERROR] Failed to download SHA256 checksum file{}", NEON_RED, HX);
+        fs::remove_file("/mnt/gentoo/stage3.tar.xz").ok();
+        return false;
+    }
+
+    println!("     {}Verifying integrity (SHA256)...{}", NEON_CYAN, HX);
+    if !verify_sha256("/mnt/gentoo/stage3.tar.xz", "/mnt/gentoo/stage3.tar.xz.sha256") {
+        println!("     {}[ERROR] SHA256 verification failed! Tarball is corrupted/compromised.{}", NEON_RED, HX);
+        fs::remove_file("/mnt/gentoo/stage3.tar.xz").ok();
+        fs::remove_file("/mnt/gentoo/stage3.tar.xz.sha256").ok();
+        return false;
+    }
+    println!("     {}✓ Integrity verified{}", NEON_GREEN, HX);
+    fs::remove_file("/mnt/gentoo/stage3.tar.xz.sha256").ok();
+
+    println!("     {}» Extracting Stage3 tarball...{}", NEON_GREEN, HX);
+    let extract = Command::new("tar")
+        .args(["-xpf", "/mnt/gentoo/stage3.tar.xz", "-C", "/mnt/gentoo",
+               "--xattrs-include=*.*", "--numeric-owner"])
+        .status();
+    match extract {
         Ok(s) if s.success() => {
-            println!("     {}» Extracting Stage3 tarball...{}", NEON_GREEN, HX);
-            let extract = Command::new("tar")
-                .args(["-xpf", "/mnt/gentoo/stage3.tar.xz", "-C", "/mnt/gentoo",
-                       "--xattrs-include=*.*", "--numeric-owner"])
-                .status();
-            match extract {
-                Ok(s) if s.success() => {
-                    fs::remove_file("/mnt/gentoo/stage3.tar.xz").ok();
-                    true
-                }
-                _ => {
-                    println!("     {}[ERROR] Failed to extract Stage3{}", NEON_RED, HX);
-                    false
-                }
-            }
+            fs::remove_file("/mnt/gentoo/stage3.tar.xz").ok();
+            true
         }
         _ => {
-            println!("     {}[ERROR] Failed to download Stage3{}", NEON_RED, HX);
+            println!("     {}[ERROR] Failed to extract Stage3{}", NEON_RED, HX);
             false
         }
     }
@@ -1136,7 +1179,7 @@ fn install_de(de_name: &str, simulation: bool) {
 }
 
 /// ─── Bootloader ───
-fn install_bootloader(drive: &str, simulation: bool) {
+fn install_bootloader(drive: &str, anonymity: &str, simulation: bool) {
     let root_part = if Path::new(&format!("{}2", drive)).exists() {
         format!("{}2", drive)
     } else {
@@ -1189,22 +1232,22 @@ fn install_bootloader(drive: &str, simulation: bool) {
              insmod ext2\n\
              \n\
              menuentry \"★ {} v{} (AmnesiaDE) ★\" {{\n\
-             {}    linux /vmlinuz-linux loglevel=3 console=tty0\n\
+             {}    linux /vmlinuz-linux loglevel=3 console=tty0 anonymity={}\n\
              {}    initrd /initrd.img\n\
              }}\n\
              menuentry \"★ {} v{} Installer ★\" {{\n\
-             {}    linux /vmlinuz-linux loglevel=3 console=tty0 installer\n\
+             {}    linux /vmlinuz-linux loglevel=3 console=tty0 installer anonymity={}\n\
              {}    initrd /initrd.img\n\
              }}\n\
              menuentry \"★ {} (Debug Mode) ★\" {{\n\
-             {}    linux /vmlinuz-linux loglevel=7 console=tty0\n\
+             {}    linux /vmlinuz-linux loglevel=7 console=tty0 anonymity={}\n\
              {}    initrd /initrd.img\n\
              }}\n\
              menuentry \"Reboot\" {{ reboot }}\n\
              menuentry \"Shutdown\" {{ halt }}\n",
-            OS_NAME, VERSION_TAG, "    ", "    ",
-            OS_NAME, VERSION_TAG, "    ", "    ",
-            OS_NAME, "    ", "    "
+            OS_NAME, VERSION_TAG, "    ", anonymity, "    ",
+            OS_NAME, VERSION_TAG, "    ", anonymity, "    ",
+            OS_NAME, "    ", anonymity, "    "
         );
         fs::write("/mnt/gentoo/boot/grub/grub.cfg", &grub_cfg).ok();
         println!("     {}✓{}", NEON_GREEN, HX);
@@ -1349,6 +1392,29 @@ fn main() {
         "en_US");
     println!("     {}┃ default →{} en_US{}", DIM, HX, NEON_GREEN);
     show_hint("System language and character encoding. Will use UTF-8.");
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    // Anonymity Selection
+    show_banner();
+    show_step(4, 11, "Anonymity Level Configuration");
+    println!("     {}┌─────────────────────────────────────────────────────┐{}", DIM, HX);
+    println!("     {0}│{1}  {2}{3}1.{1} {4}{5}None{1}     {6}(Standard networking - no Tor/identity rotation){1}",
+        DIM, HX, NEON_PURPLE, HX, NEON_CYAN, BOLD, DIM);
+    println!("     {0}│{1}  {2}{3}2.{1} {4}{5}Extreme{1}  {6}(MAC/hostname rotation, Tor transparent proxy){1}",
+        DIM, HX, NEON_PURPLE, HX, NEON_CYAN, BOLD, DIM);
+    println!("     {}└─────────────────────────────────────────────────────┘{}", DIM, HX);
+    println!();
+    let anon_choice = prompt_default(
+        &format!("     {}Select Anonymity Level [{}{}2{}:{} {}]{}{} {}",
+            FG, NEON_PURPLE, HX, FG, HX, NEON_PURPLE, HX, NEON_CYAN, HX),
+        "2");
+    let anonymity = match anon_choice.as_str() {
+        "1" => "none",
+        "2" => "extreme",
+        _ => "extreme",
+    };
+    println!("     {0}┃{1} {2}{3}✓{1} {4}Anonymity:{5} {6}",
+        DIM, HX, NEON_GREEN, HX, FG, NEON_CYAN, anonymity);
     std::thread::sleep(std::time::Duration::from_secs(1));
 
     // [5/11] Drive scan
@@ -1532,7 +1598,7 @@ fn main() {
     show_banner();
     println!("     {}{}[11/11]{} {}Bootloader Installation (UEFI){}", NEON_CYAN, BOLD, HX, FG, HX);
     println!();
-    install_bootloader(&drive, simulation);
+    install_bootloader(&drive, &anonymity, simulation);
 
     // Complete
     show_complete(&username, &drive, &hostname, &timezone, &locale, de_name);

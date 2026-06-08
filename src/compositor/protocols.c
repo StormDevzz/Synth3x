@@ -895,6 +895,41 @@ void protocols_bind(wl_client_t *client, uint32_t name, uint32_t id,
 }
 
 void protocols_cleanup_client(compositor_t *c, wl_client_t *cl) {
+    /* Free all client-owned resource implementations to prevent memory leaks */
+    for (int i = 0; i < cl->obj_count; i++) {
+        wl_object_t *obj = &cl->objects[i];
+        if (!obj || !obj->interface || !obj->implementation) continue;
+
+        if (strcmp(obj->interface->name, "wl_surface") == 0) {
+            wl_surface_t *surf = (wl_surface_t *)obj->implementation;
+            free(surf);
+        }
+        else if (strcmp(obj->interface->name, "wl_shm_pool") == 0) {
+            wl_shm_pool_t *pool = (wl_shm_pool_t *)obj->implementation;
+            if (pool->data && pool->data != MAP_FAILED) {
+                munmap(pool->data, pool->size);
+            }
+            if (pool->fd >= 0) {
+                close(pool->fd);
+            }
+            free(pool);
+        }
+        else if (strcmp(obj->interface->name, "wl_buffer") == 0) {
+            wl_buffer_t *buf = (wl_buffer_t *)obj->implementation;
+            free(buf);
+        }
+        else if (strcmp(obj->interface->name, "xdg_positioner") == 0) {
+            free(obj->implementation);
+        }
+        else if (strcmp(obj->interface->name, "zwlr_layer_surface_v1") == 0) {
+            free(obj->implementation);
+        }
+        else if (strcmp(obj->interface->name, "zxdg_toplevel_decoration_v1") == 0) {
+            free(obj->implementation);
+        }
+        obj->implementation = NULL;
+    }
+
     /* Walk all xdg surfaces and clean up ones belonging to this client */
     xdg_surface_t **pp = &xdg_surfaces;
     while (*pp) {

@@ -69,51 +69,78 @@ typedef struct {
     const char *url;          /* homepage */
     const char *download;     /* actual download URL */
     const char *bin;          /* binary name after install */
+    const char *sha256;       /* expected SHA256 hash */
 } PkgEntry;
 
 static PkgEntry pkg_db[] = {
     {"telegram-desktop", "4.16.8", "Telegram Desktop messenger",
      "libc,qt6", "https://desktop.telegram.org",
      "https://github.com/telegramdesktop/tdesktop/releases/download/v4.16.8/tsetup.4.16.8.tar.xz",
-     "Telegram"},
+     "Telegram", NULL},
     {"firefox", "128.0", "Firefox web browser",
      "libc,gtk3,dbus", "https://mozilla.org",
      "https://download-installer.cdn.mozilla.net/pub/firefox/releases/128.0/linux-x86_64/en-US/firefox-128.0.tar.xz",
-     "firefox"},
+     "firefox", NULL},
     {"vscodium", "1.92.0", "VS Code editor (open source)",
      "libc,glib2,gtk3", "https://vscodium.com",
      "https://github.com/VSCodium/vscodium/releases/download/1.92.0.24258/codium-1.92.0.24258-x64.tar.gz",
-     "codium"},
+     "codium", NULL},
     {"vim", "9.1", "Advanced text editor",
      "libc,ncurses", "https://vim.org",
      "https://github.com/vim/vim/archive/refs/tags/v9.1.tar.gz",
-     "vim"},
+     "vim", NULL},
     {"htop", "3.3.0", "Interactive process viewer",
      "libc,ncurses", "https://htop.dev",
      "https://github.com/htop-dev/htop/archive/refs/tags/3.3.0.tar.gz",
-     "htop"},
+     "htop", NULL},
     {"git", "2.45.0", "Distributed version control",
      "libc,zlib,curl", "https://git-scm.com",
      "https://github.com/git/git/archive/refs/tags/v2.45.0.tar.gz",
-     "git"},
+     "git", NULL},
     {"wget", "1.24.5", "Network file downloader",
      "libc,openssl", "https://gnu.org/software/wget",
      "https://ftp.gnu.org/gnu/wget/wget-1.24.5.tar.gz",
-     "wget"},
+     "wget", NULL},
     {"nano", "8.0", "Simple text editor",
      "libc,ncurses", "https://nano-editor.org",
      "https://www.nano-editor.org/dist/v8/nano-8.0.tar.xz",
-     "nano"},
+     "nano", NULL},
     {"nodejs", "22.3.0", "JavaScript runtime",
      "libc,ssl", "https://nodejs.org",
      "https://nodejs.org/dist/v22.3.0/node-v22.3.0-linux-x64.tar.xz",
-     "node"},
+     "node", NULL},
     {"nginx", "1.26.1", "High-performance web server",
      "libc,ssl,zlib", "https://nginx.org",
      "https://nginx.org/download/nginx-1.26.1.tar.gz",
-     "nginx"},
-    {NULL, NULL, NULL, NULL, NULL, NULL, NULL}
+     "nginx", NULL},
+    {NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL}
 };
+
+/* ─── Verify SHA256 integrity ─── */
+static int verify_sha256(const char *file_path, const char *expected_hash) {
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "sha256sum '%s' | awk '{print $1}' > /tmp/pkg_calculated_sha256 2>/dev/null", file_path);
+    if (system(cmd) != 0) return 0;
+    
+    FILE *f = fopen("/tmp/pkg_calculated_sha256", "r");
+    if (!f) return 0;
+    char calc_hash[128] = "";
+    if (fgets(calc_hash, sizeof(calc_hash), f) == NULL) {
+        fclose(f);
+        return 0;
+    }
+    fclose(f);
+    unlink("/tmp/pkg_calculated_sha256");
+
+    /* Trim whitespace */
+    char *p = calc_hash;
+    while (*p && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) p++;
+    char *end = p;
+    while (*end && *end != ' ' && *end != '\t' && *end != '\r' && *end != '\n') end++;
+    *end = 0;
+
+    return (strcmp(p, expected_hash) == 0);
+}
 
 static PkgEntry *find_pkg(const char *name) {
     for (int i = 0; pkg_db[i].name; i++)
@@ -225,6 +252,17 @@ static int syn_install(const char *pkg_name) {
     }
     
     printf("  " GREEN "✓ Downloaded (%s)" NC "\n", archive);
+    
+    /* Verify SHA256 */
+    if (pkg->sha256 != NULL) {
+        printf("  " CYAN ">>>" NC " Verifying package integrity (SHA256)...\n");
+        if (!verify_sha256(archive, pkg->sha256)) {
+            printf("  " RED "[!] SHA256 verification failed! Package is compromised or corrupted." NC "\n");
+            unlink(archive);
+            return 1;
+        }
+        printf("  " GREEN "✓ Integrity verified (SHA256 match)." NC "\n");
+    }
     
     /* Extract */
     printf("  " CYAN ">>>" NC " Extracting to %s...\n", PKG_INSTALL);

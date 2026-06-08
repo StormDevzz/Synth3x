@@ -40,8 +40,8 @@ typedef struct {
 /* ─── Gentoo Stage3 download URLs (mirrors) ─── */
 static const download_entry stage3_entries[] = {
     {
-        "stage3-amd64-openrc",
-        "https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/current-stage3-amd64-openrc/stage3-amd64-openrc-latest.tar.xz",
+        "stage3-amd64-hardened-openrc",
+        "https://bouncer.gentoo.org/fetch/root/all/releases/amd64/autobuilds/current-stage3-amd64-hardened-openrc/stage3-amd64-hardened-openrc-latest.tar.xz",
         "/mnt/gentoo/stage3.tar.xz",
         NULL, 1
     },
@@ -53,6 +53,50 @@ static const download_entry stage3_entries[] = {
     },
     { NULL, NULL, NULL, NULL, 0 }
 };
+
+/* ─── Verify SHA256 integrity using sha256sum ─── */
+static int verify_sha256(const char *file_path, const char *sha256_path) {
+    char cmd[512];
+    snprintf(cmd, sizeof(cmd), "sha256sum '%s' | awk '{print $1}' > /tmp/calculated_sha256 2>/dev/null", file_path);
+    if (system(cmd) != 0) return 0;
+    
+    FILE *f_calc = fopen("/tmp/calculated_sha256", "r");
+    if (!f_calc) return 0;
+    char calc_hash[128] = "";
+    if (fgets(calc_hash, sizeof(calc_hash), f_calc) == NULL) {
+        fclose(f_calc);
+        return 0;
+    }
+    fclose(f_calc);
+    unlink("/tmp/calculated_sha256");
+
+    FILE *f_exp = fopen(sha256_path, "r");
+    if (!f_exp) return 0;
+    char exp_hash[128] = "";
+    if (fgets(exp_hash, sizeof(exp_hash), f_exp) == NULL) {
+        fclose(f_exp);
+        return 0;
+    }
+    fclose(f_exp);
+
+    /* Trim whitespace */
+    char *p = calc_hash;
+    while (*p && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) p++;
+    char *end = p;
+    while (*end && *end != ' ' && *end != '\t' && *end != '\r' && *end != '\n') end++;
+    *end = 0;
+
+    char *pe = exp_hash;
+    while (*pe && (*pe == ' ' || *pe == '\t' || *pe == '\r' || *pe == '\n')) pe++;
+    char *ende = pe;
+    while (*ende && *ende != ' ' && *ende != '\t' && *ende != '\r' && *ende != '\n') ende++;
+    *ende = 0;
+
+    if (strlen(p) == 64 && strlen(pe) == 64 && strcmp(p, pe) == 0) {
+        return 1;
+    }
+    return 0;
+}
 
 /* ─── Utility: check if a command exists ─── */
 static int cmd_exists(const char *cmd) {
@@ -188,6 +232,31 @@ int installer_download_stage3(void) {
             return -1;
         }
         printf("  %s[OK] %s downloaded%s\n", GREEN, e->name, NC);
+
+        /* Verify stage3 SHA256 */
+        if (strcmp(e->name, "stage3-amd64-hardened-openrc") == 0) {
+            char sha_url[512];
+            snprintf(sha_url, sizeof(sha_url), "%s.sha256", e->url);
+            char sha_dest[256];
+            snprintf(sha_dest, sizeof(sha_dest), "%s.sha256", e->dest);
+            printf("  %sDownloading SHA256 checksum...%s\n", CYAN, NC);
+            if (download_file(sha_url, sha_dest) == 0) {
+                printf("  %sVerifying integrity (SHA256)...%s\n", CYAN, NC);
+                if (verify_sha256(e->dest, sha_dest)) {
+                    printf("  %s[OK] SHA256 verified!%s\n", GREEN, NC);
+                    unlink(sha_dest);
+                } else {
+                    printf("  %s[ERROR] SHA256 mismatch! File is compromised or corrupted!%s\n", RED, NC);
+                    unlink(e->dest);
+                    unlink(sha_dest);
+                    return -1;
+                }
+            } else {
+                printf("  %s[ERROR] Could not download SHA256 checksum file!%s\n", RED, NC);
+                unlink(e->dest);
+                return -1;
+            }
+        }
 
         if (e->compress) {
             if (decompress(e->dest, "/mnt/gentoo") != 0) {
