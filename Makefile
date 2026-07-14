@@ -57,8 +57,8 @@ $(INIT): $(INIT_SRC) $(INIT_HW)
 # ─── Package Manager (syn) ───
 $(SYN_CMD): src/commands/syn.c
 	@mkdir -p $(BUILD)
-	$(CC64) -static -O2 -Wall -mno-avx -mno-avx2 -o $@ $< -lpthread
-	@echo "  ── syn package manager: $@"
+	$(CC64) -static -O2 -Wall -mno-avx -mno-avx2 -o $@ $<
+	@echo "  ── syn emerge wrapper: $@"
 
 # ─── Hardware analyzers ───
 $(BUILD)/ram_analyzer: src/who/ram_analyzer.c

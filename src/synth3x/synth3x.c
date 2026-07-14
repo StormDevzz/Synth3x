@@ -413,7 +413,7 @@ static void *async_launch_browser(void *arg) {
         sleep(1);
         execl("/usr/bin/w3m", "w3m", "https://lite.duckduckgo.com/lite", NULL);
         execl("/bin/busybox", "busybox", "wget", "-q", "-O-", "https://lite.duckduckgo.com", NULL);
-        printf("w3m not found. Try: syn inst w3m\r\n");
+        printf("w3m not found. Try: emerge --ask w3m\r\n");
         sleep(3);
         _exit(1);
     }
@@ -930,14 +930,14 @@ static const WinTextLine guide_p5_lines[] = {
     {12, 12, "======================================================"},
     {12, 26, "   SYNTH3X OS: GENTOO INTERNET SETUP GUIDE           "},
     {12, 40, "======================================================"},
-    {12, 56, "[6/8] INSTALLING PROGRAMS (syn pkg manager)"},
-    {12, 76, "The 'syn' command manages packages:"},
-    {24, 100, "$ syn inst w3m       - Install w3m browser"},
-    {24, 116, "$ syn binary firefox - Download Firefox binary"},
-    {24, 132, "$ syn list           - List all packages"},
-    {24, 148, "$ syn search browser - Search packages"},
-    {24, 164, "$ syn update         - Update package list"},
-    {24, 180, "$ syn remove w3m     - Remove package"},
+    {12, 56, "[6/8] INSTALLING PROGRAMS (Gentoo emerge)"},
+    {12, 76, "Use 'emerge' to manage packages:"},
+    {24, 100, "$ emerge --ask w3m   - Install w3m browser"},
+    {24, 116, "$ emerge firefox     - Install Firefox"},
+    {24, 132, "$ emerge -pv @world  - List all packages"},
+    {24, 148, "$ emerge --search <q> - Search packages"},
+    {24, 164, "$ emerge --sync      - Update portage tree"},
+    {24, 180, "$ emerge --unmerge w3m - Remove package"},
     {12, 204, "Available packages in live environment:"},
     {24, 224, "w3m firefox vscodium telegram-desktop"},
     {24, 240, "vim htop gcc python nodejs git curl"},
