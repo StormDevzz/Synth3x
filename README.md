@@ -62,3 +62,9 @@ If you are developing applications, packages, or modifications for Synth3x, read
     Read the [System Installer Developer Guide](docs/dev_installer.md).
 *   **How do I create custom packaging for the syn package manager?**
     Read the [Custom Packaging Developer Guide](docs/dev_packaging.md).
+
+---
+
+## Friends
+
+See [FRIENDS.md](FRIENDS.md) for a list of projects and people we stand with.
