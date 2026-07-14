@@ -41,6 +41,8 @@ Synth3x is a source-based OS that expects you to understand what is happening un
     Read the [Kernel Configuration Guide](docs/gentoo_kernel.md) and the [OpenRC Service Management Guide](docs/gentoo_openrc.md).
 *   **Something failed to build. How do I debug it?**
     Consult the [Portage Troubleshooting Guide](docs/gentoo_troubleshooting.md) for OOM issues, masked packages, and dependency conflicts.
+*   **Why does Gentoo exist and what makes it different?**
+    Read [Why Gentoo? — The Reason for Existence](docs/gentoo_25_why_gentoo.md).
 *   **Want an overview of the architecture?**
     Read the [Gentoo Intro & Philosophy Guide](docs/gentoo_intro.md).
 *   **How does Gentoo Hardened security work?**
